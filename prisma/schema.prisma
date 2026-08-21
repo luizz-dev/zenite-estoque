@@ -1,0 +1,174 @@
+// ============================================================================
+// PRISMA SCHEMA — Estrutura do banco de dados do Zênite
+// ----------------------------------------------------------------------------
+// Isso aqui define as "tabelas" do seu sistema. O Prisma lê esse arquivo e
+// gera automaticamente o cliente TypeScript usado nas rotas de API
+// (src/app/api/.../route.ts).
+//
+// COMO CONECTAR NO BANCO DE VERDADE:
+// 1. Crie uma conta grátis em https://neon.tech (Postgres) ou use o Postgres
+//    do Supabase/Railway. Também dá pra rodar local com SQLite pra testar.
+// 2. Copie a "connection string" que o provedor te der.
+// 3. Cole ela no arquivo .env (na raiz do projeto) na variável DATABASE_URL.
+//    Veja o .env.example incluso.
+// 4. Rode no terminal, na raiz do projeto:
+//      npx prisma migrate dev --name init
+//    Isso cria as tabelas de verdade no banco a partir deste arquivo.
+// 5. (Opcional) Popule com dados de exemplo:
+//      npx prisma db seed
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // troque para "sqlite" se quiser testar localmente sem provedor externo
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String   // NUNCA salve senha em texto puro — sempre hash (ver src/lib/auth.ts)
+  celular      String
+  cpfCnpj      String?
+  cep          String?
+  endereco     String?
+  formaPagamento String? // "cartao" | "pix" — apenas informativo neste protótipo
+  criadoEm     DateTime @default(now())
+
+  @@map("usuarios")
+}
+
+// Uma única linha representando os dados fiscais da empresa do usuário.
+// Fica "não configurada" até o usuário preencher em Perfil > Dados Fiscais
+// (ou na primeira tentativa de emitir uma NF-e).
+model Empresa {
+  id            String   @id @default(cuid())
+  configurada   Boolean  @default(false)
+  razaoSocial   String   @default("")
+  cnpj          String   @default("")
+  ie            String   @default("")
+  uf            String   @default("SP")
+  regime        String   @default("MEI — Simples Nacional")
+  cep           String   @default("")
+  rua           String   @default("")
+  numero        String   @default("")
+  bairro        String   @default("")
+  cidade        String   @default("")
+  certificadoNome String @default("") // apenas o nome do arquivo .pfx enviado
+  atualizadoEm  DateTime @updatedAt
+
+  @@map("empresa")
+}
+
+model Produto {
+  id                String   @id @default(cuid())
+  nome              String
+  sku               String   @unique
+  categoria         String
+  unidade           String   @default("UN")
+  quantidade        Int      @default(0)
+  quantidadeMinima  Int      @default(8)
+  precoCusto        Float
+  precoVenda        Float
+  fornecedor        String?
+  ncm               String   // Nomenclatura Comum do Mercosul — definido aqui, no cadastro
+  descricao         String?
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+
+  itensNota         ItemNotaFiscal[]
+
+  @@map("produtos")
+}
+
+model NotaFiscal {
+  id                  String   @id @default(cuid())
+  numero              Int      @unique
+  destinatarioTipo    String   // "PF" | "PJ"
+  destinatarioDoc     String   // CPF ou CNPJ
+  destinatarioNome    String
+  destinatarioIe      String?  // Inscrição Estadual (obrigatória se PJ)
+  destinatarioUf      String
+  enderecoEntrega     Json?    // null se for igual ao do destinatário
+  csosn               String
+  formaPagamento      String   // código tPag (01, 03, 04, 15, 17...)
+  valorTotal          Float
+  statusFiscal        String   @default("autorizada") // "autorizada" | "pendente" | "rejeitada" | "cancelada"
+  motivoRejeicao      String?  // preenchido quando statusFiscal = "rejeitada"
+  emitidaEm           DateTime @default(now())
+
+  itens               ItemNotaFiscal[]
+
+  @@map("notas_fiscais")
+}
+
+// Contas/despesas do MEI, usadas no cálculo do Lucro do Mês (Dashboard).
+model ContaFixa {
+  id            String   @id @default(cuid())
+  nome          String
+  valor         Float
+  categoria     String   @default("Outros")
+  diaVencimento Int      @default(10) // dia do mês (1-31)
+  tipo          String   @default("fixa") // "fixa" (entra todo mês no cálculo) | "eventual" (não entra automaticamente)
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@map("contas_fixas")s
+}
+
+// Assinatura do usuário no próprio Zênite (SaaS). Linha única, como Empresa.
+model Assinatura {
+  id           String   @id @default(cuid())
+  plano        String   @default("mensal") // "mensal" | "anual"
+  status       String   @default("ativa")  // "ativa" | "cancelada"
+  valor        Float    @default(49.9)
+  formaPagamento String @default("Cartão de Crédito") // meramente informativo neste protótipo
+  proximaCobranca DateTime?
+  atualizadoEm DateTime @updatedAt
+
+  @@map("assinatura")
+}
+
+model ItemNotaFiscal {
+  id            String     @id @default(cuid())
+  notaId        String
+  nota          NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  produtoId     String
+  produto       Produto    @relation(fields: [produtoId], references: [id])
+  nome          String
+  sku           String
+  ncm           String
+  cfop          String
+  quantidade    Int
+  valorUnitario Float
+
+  @@map("itens_nota_fiscal")
+}
+
+model Movimentacao {
+  id          String   @id @default(cuid())
+  tipo        String   // "entrada" | "saida" (ajustes manuais de estoque, sem nota)
+  item        String
+  quantidade  Int
+  motivo      String?  // ex.: "Perda / Avaria", "Reposição de Fornecedor"
+  observacao  String?
+  data        DateTime @default(now())
+
+  @@map("movimentacoes")
+}
+
+model Notificacao {
+  id          String   @id @default(cuid())
+  tipo        String   // "estoque" | "fiscal" | "mei" | "sistema"
+  titulo      String
+  descricao   String
+  prioridade  String   // "alta" | "media" | "baixa"
+  lida        Boolean  @default(false)
+  criadoEm    DateTime @default(now())
+
+  @@map("notificacoes")
+}

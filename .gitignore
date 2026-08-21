@@ -1,0 +1,40 @@
+# dependencias
+/node_modules
+/.pnp
+.pnp.js
+
+# build e cache
+/.next/
+/out/
+/build/
+dist/
+*.tsbuildinfo
+
+# variaveis de ambiente (NUNCA suba arquivos com chaves/senhas reais)
+.env
+.env*.local
+.env.production
+.env.development
+!.env.example
+
+# prisma
+/prisma/generated
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# arquivos do sistema e editores
+.DS_Store
+*.pem
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+
+# tipos gerados do next
+next-env.d.ts
