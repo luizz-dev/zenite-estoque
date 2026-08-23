@@ -13,6 +13,7 @@ import { BtnGhost } from "@/components/ui/Button";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
 import Link from "next/link";
+import { PageLoading } from "@/components/ui/Loading";
 
 const BAR_COLORS = ["#7C6CF0", "#00B4D8", "#F57C00", "#A99AF5", "#4ADE80"];
 const URL_GUIA_DAS = "https://www8.receita.fazenda.gov.br/SimplesNacional/aplicacoes.aspx?id=21";
@@ -31,8 +32,9 @@ function ChartTooltipTicket({ active, payload }: { active?: boolean; payload?: {
 }
 
 export default function DashboardPage() {
-  const { produtos, notas, contasFixas, naoLidas } = useApp();
+  const { produtos, notas, contasFixas, naoLidas, carregando } = useApp();
   const [considerarContas, setConsiderarContas] = useState(true);
+
 
   const { lucroBruto, totalContas, lucroLiquido } = useMemo(
     () => calcularLucroMes(notas, produtos, contasFixas, considerarContas),
@@ -41,6 +43,8 @@ export default function DashboardPage() {
   const lucroExibido = considerarContas ? lucroLiquido : lucroBruto;
 
   const dadosTicket = useMemo(() => ticketPorFormaPagamento(notas), [notas]);
+  
+  if (carregando) return <PageLoading titulo="Dashboard" />;
 
   const totalUnidadesEstoque = produtos.reduce((a, p) => a + p.quantidade, 0);
 

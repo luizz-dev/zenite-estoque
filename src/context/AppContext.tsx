@@ -8,8 +8,9 @@
 // `useApp()` em vez de buscar isso sozinho. Por baixo dos panos, este
 // provider conversa com as rotas em src/app/api/*.
 // ============================================================================
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Produto, NotaFiscal, Notificacao, Movimentacao, Empresa, Usuario, NovaNotaPayload, ContaFixa, Assinatura, PlanoAssinatura } from "@/lib/types";
+import { alertasVencimentoContas, type AlertaVencimento } from "@/lib/utils";
 
 interface AppContextValue {
   carregando: boolean;
@@ -21,6 +22,7 @@ interface AppContextValue {
   notificacoes: Notificacao[];
   contasFixas: ContaFixa[];
   assinatura: Assinatura | null;
+  alertasVencimento: AlertaVencimento[];
   naoLidas: number;
 
   recarregarTudo: () => Promise<void>;
@@ -207,11 +209,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const naoLidas = notificacoes.filter((n) => !n.lida).length;
+  const alertasVencimento = useMemo(() => alertasVencimentoContas(contasFixas), [contasFixas]);
+
+  const naoLidas = notificacoes.filter((n) => !n.lida).length + alertasVencimento.length;
 
   return (
     <AppContext.Provider value={{
-      carregando, usuario, empresa, produtos, notas, movimentacoes, notificacoes, contasFixas, assinatura, naoLidas,
+      carregando, usuario, empresa, produtos, notas, movimentacoes, notificacoes, contasFixas, assinatura, alertasVencimento, naoLidas,
       recarregarTudo, definirUsuario: setUsuario,
       criarProduto, editarProduto, excluirProduto,
       emitirNota, registrarMovimentacao,

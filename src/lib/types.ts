@@ -135,6 +135,7 @@ export interface ContaFixa {
   categoria: string;
   diaVencimento: number;
   tipo: TipoConta;
+  avisoAntecedenciaDias: number;
   criadoEm: string;
 }
 

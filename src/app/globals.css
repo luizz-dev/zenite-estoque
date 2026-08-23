@@ -39,6 +39,8 @@ input, select, textarea, button {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+@keyframes zn-spin { to { transform: rotate(360deg); } }
+.zn-spinner { animation: zn-spin 0.8s linear infinite; }
 
 .zn-page-enter { animation: zn-fade-in 0.32s ease both; }
 .zn-card-enter { animation: zn-fade-in 0.32s ease both; }

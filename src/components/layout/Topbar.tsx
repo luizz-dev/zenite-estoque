@@ -5,8 +5,17 @@ import { Bell } from "lucide-react";
 import { C } from "@/lib/constants";
 import { useApp } from "@/context/AppContext";
 
+// Primeira letra do primeiro nome + primeira do segundo (se existir).
+// Sem segundo nome, usa as duas primeiras letras do primeiro nome mesmo.
+function iniciaisUsuario(nome?: string | null): string {
+  const partes = (nome || "").trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "US";
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[1][0]).toUpperCase();
+}
+
 export function Topbar({ titulo, sub }: { titulo: string; sub?: string }) {
-  const { naoLidas } = useApp();
+  const { naoLidas, usuario } = useApp();
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
       <div>
@@ -29,10 +38,11 @@ export function Topbar({ titulo, sub }: { titulo: string; sub?: string }) {
             }}>{naoLidas > 9 ? "9+" : naoLidas}</span>
           )}
         </Link>
-        <div style={{
+        <Link href="/perfil" title="Perfil & Configurações" style={{
           width: 46, height: 46, borderRadius: 9, background: `linear-gradient(135deg,${C.purple2},${C.purple1})`,
           display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontSize: 14, fontWeight: 700,
-        }}>U1</div>
+          textDecoration: "none",
+        }}>{iniciaisUsuario(usuario?.nome)}</Link>
       </div>
     </div>
   );

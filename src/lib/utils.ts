@@ -91,3 +91,55 @@ export const simularStatusFiscal = (): { statusFiscal: "autorizada" | "rejeitada
   ];
   return { statusFiscal: "rejeitada", motivoRejeicao: motivos[Math.floor(Math.random() * motivos.length)] };
 };
+
+// Opções de antecedência que o usuário pode escolher, por conta, para
+// ser avisado do vencimento (usadas no cadastro de Contas Fixas).
+export const OPCOES_ANTECEDENCIA = [
+  { v: 1, l: "1 dia antes" },
+  { v: 7, l: "1 semana antes" },
+  { v: 14, l: "2 semanas antes" },
+] as const;
+
+export interface AlertaVencimento {
+  id: string;
+  contaId: string;
+  titulo: string;
+  descricao: string;
+  diasRestantes: number;
+}
+
+/**
+ * Verifica, para cada conta fixa, se a data de vencimento deste mês (ou do
+ * próximo, se a deste mês já passou) cai dentro da janela de antecedência
+ * escolhida pelo usuário — e monta um alerta pronto para exibir.
+ */
+export const alertasVencimentoContas = (contas: ContaFixa[]): AlertaVencimento[] => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const alertas: AlertaVencimento[] = [];
+
+  for (const conta of contas) {
+    if (conta.tipo !== "fixa") continue; // só avisa de despesas recorrentes
+    const antecedencia = conta.avisoAntecedenciaDias ?? 7;
+
+    let vencimento = new Date(hoje.getFullYear(), hoje.getMonth(), conta.diaVencimento);
+    if (vencimento < hoje) {
+      vencimento = new Date(hoje.getFullYear(), hoje.getMonth() + 1, conta.diaVencimento);
+    }
+
+    const diasRestantes = Math.round((vencimento.getTime() - hoje.getTime()) / 86400000);
+    if (diasRestantes >= 0 && diasRestantes <= antecedencia) {
+      alertas.push({
+        id: `vencimento-${conta.id}`,
+        contaId: conta.id,
+        titulo: `Conta próxima do vencimento: ${conta.nome}`,
+        descricao: diasRestantes === 0
+          ? `Vence hoje (dia ${conta.diaVencimento}) — ${brl(conta.valor)}.`
+          : `Vence em ${diasRestantes} dia${diasRestantes > 1 ? "s" : ""} (dia ${conta.diaVencimento}) — ${brl(conta.valor)}.`,
+        diasRestantes,
+      });
+    }
+  }
+
+  return alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
+};
