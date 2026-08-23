@@ -10,14 +10,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
 import type { StatusFiscal } from "@/lib/types";
+import { PageLoading } from "@/components/ui/Loading";
 
 type Evento =
   | { tipo: "entrada" | "saida"; id: string; item: string; qtd: number; motivo?: string | null; observacao?: string | null; data: string }
   | { tipo: "nfe"; id: string; numero: number; itens: { nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }[]; valorTotal: number; destinatarioNome: string; destinatarioDoc: string; destinatarioUf: string; formaPagamento: string; statusFiscal: StatusFiscal; motivoRejeicao?: string | null; data: string };
 
 export default function HistoricoPage() {
-  const { movimentacoes, notas } = useApp();
+  const { movimentacoes, notas, carregando } = useApp();
   const [filtro, setFiltro] = useState<"todos" | "entrada" | "saida" | "nfe">("todos");
+
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const toggleExpandir = (id: string) => setExpandido((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -30,6 +32,8 @@ export default function HistoricoPage() {
     }));
     return [...movs, ...nfes].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, notas]);
+
+  if (carregando) return <PageLoading titulo="Histórico de Movimentações" />;
 
   const exibidos = filtro === "todos" ? eventos : eventos.filter((e) => e.tipo === filtro);
 

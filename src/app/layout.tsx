@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AppProvider } from "@/context/AppContext";
-import "./globals.css";
+import "@/app/globals.css";
 
 export const metadata: Metadata = {
   title: "Zênite — Gestão Fiscal e Estoque",

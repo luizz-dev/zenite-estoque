@@ -10,6 +10,7 @@ import { BtnGhost } from "@/components/ui/Button";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
 import { ModalAssinatura } from "@/components/perfil/ModalAssinatura";
+import { PageLoading } from "@/components/ui/Loading";
 
 function LinhaAssinatura({ label, valor, corValor }: { label: string; valor: string; corValor?: string }) {
   return (
@@ -21,10 +22,12 @@ function LinhaAssinatura({ label, valor, corValor }: { label: string; valor: str
 }
 
 export default function PerfilPage() {
-  const { usuario, empresa, assinatura } = useApp();
+  const { usuario, empresa, assinatura, carregando } = useApp();
   const router = useRouter();
   const [modalAssinatura, setModalAssinatura] = useState<false | "plano" | "cancelar">(false);
   const [saindo, setSaindo] = useState(false);
+
+  if (carregando) return <PageLoading titulo="Perfil & Configurações" />;
 
   const sair = async () => {
     setSaindo(true);

@@ -4,21 +4,24 @@ import { useState } from "react";
 import { Plus, Wallet, Pencil, Trash2, Calendar, X, Check, AlertTriangle } from "lucide-react";
 import { C, CATEGORIAS_CONTA } from "@/lib/constants";
 import { brl, somaContasFixas } from "@/lib/utils";
+import { OPCOES_ANTECEDENCIA } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input, Select, FieldLabel } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost, BtnIcon } from "@/components/ui/Button";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
+import { PageLoading } from "@/components/ui/Loading";
 import type { ContaFixa, TipoConta } from "@/lib/types";
 
-const FORM_VAZIO = { nome: "", valor: "", categoria: CATEGORIAS_CONTA[0], diaVencimento: "10", tipo: "fixa" as TipoConta };
+const FORM_VAZIO = { nome: "", valor: "", categoria: CATEGORIAS_CONTA[0], diaVencimento: "10", tipo: "fixa" as TipoConta, avisoAntecedenciaDias: "7" };
 
 function ModalConta({ contaEditando, onClose }: { contaEditando: ContaFixa | null; onClose: () => void }) {
   const { criarConta, editarConta } = useApp();
   const [form, setForm] = useState(contaEditando ? {
     nome: contaEditando.nome, valor: String(contaEditando.valor), categoria: contaEditando.categoria,
     diaVencimento: String(contaEditando.diaVencimento), tipo: contaEditando.tipo,
+    avisoAntecedenciaDias: String(contaEditando.avisoAntecedenciaDias ?? 7),
   } : FORM_VAZIO);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -28,7 +31,7 @@ function ModalConta({ contaEditando, onClose }: { contaEditando: ContaFixa | nul
     if (!form.nome.trim() || !form.valor) return setErro("Nome e valor são obrigatórios.");
     setErro(""); setSalvando(true);
     try {
-      const dados = { nome: form.nome, valor: Number(form.valor), categoria: form.categoria, diaVencimento: Number(form.diaVencimento) || 10, tipo: form.tipo };
+      const dados = { nome: form.nome, valor: Number(form.valor), categoria: form.categoria, diaVencimento: Number(form.diaVencimento) || 10, tipo: form.tipo, avisoAntecedenciaDias: Number(form.avisoAntecedenciaDias) || 7 };
       if (contaEditando) await editarConta(contaEditando.id, dados);
       else await criarConta(dados);
       onClose();
@@ -76,6 +79,22 @@ function ModalConta({ contaEditando, onClose }: { contaEditando: ContaFixa | nul
               <p style={{ color: C.textMuted, fontSize: 14, margin: "6px 0 0" }}>Contas &quot;Fixas&quot; entram automaticamente no cálculo do Lucro do Mês no Dashboard. Contas &quot;Eventuais&quot; ficam registradas, mas não entram sozinhas nesse cálculo.</p>
             </div>
 
+            <div>
+              <FieldLabel>Avisar do vencimento com quanto tempo de antecedência?</FieldLabel>
+              <div style={{ display: "flex", gap: 8 }}>
+                {OPCOES_ANTECEDENCIA.map((op) => {
+                  const active = Number(form.avisoAntecedenciaDias) === op.v;
+                  return (
+                    <button key={op.v} onClick={() => set("avisoAntecedenciaDias", String(op.v))} style={{
+                      flex: 1, padding: "9px 12px", borderRadius: 9, border: `1px solid ${active ? C.purple1 : C.border}`, cursor: "pointer",
+                      fontSize: 14.5, fontWeight: 500, background: active ? "rgba(72,55,232,0.2)" : "rgba(255,255,255,0.02)", color: active ? C.purpleText : C.textSec,
+                    }}>{op.l}</button>
+                  );
+                })}
+              </div>
+              <p style={{ color: C.textMuted, fontSize: 14, margin: "6px 0 0" }}>Só vale para contas &quot;Fixas&quot; — é quando o alerta de vencimento vai aparecer na Central de Alertas.</p>
+            </div>
+
             {erro && (
               <div style={{ borderRadius: 10, border: "1px solid rgba(248,113,113,0.3)", background: "rgba(248,113,113,0.08)", padding: "10px 12px", color: C.red, fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
                 <AlertTriangle size={14} /> {erro}
@@ -116,9 +135,11 @@ function ModalExcluirConta({ conta, onClose }: { conta: ContaFixa; onClose: () =
 }
 
 export default function ContasFixasPage() {
-  const { contasFixas } = useApp();
+  const { contasFixas, carregando } = useApp();
   const [modal, setModal] = useState<"nova" | "editar" | "excluir" | null>(null);
   const [contaAtiva, setContaAtiva] = useState<ContaFixa | null>(null);
+
+  if (carregando) return <PageLoading titulo="Contas Fixas" sub="Despesas mensais do negócio" />;
 
   const totalFixas = somaContasFixas(contasFixas);
   const totalEventuais = contasFixas.filter((c) => c.tipo === "eventual").reduce((a, c) => a + c.valor, 0);

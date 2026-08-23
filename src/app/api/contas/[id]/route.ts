@@ -16,6 +16,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       categoria: dados.categoria,
       diaVencimento: Number(dados.diaVencimento),
       tipo: dados.tipo === "eventual" ? "eventual" : "fixa",
+      avisoAntecedenciaDias: [1, 7, 14].includes(Number(dados.avisoAntecedenciaDias)) ? Number(dados.avisoAntecedenciaDias) : 7,
     },
   });
 

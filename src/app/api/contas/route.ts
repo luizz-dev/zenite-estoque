@@ -8,7 +8,7 @@ export async function GET() {
 }
 
 // POST /api/contas — cadastra uma nova conta/despesa
-// Body: { nome, valor, categoria, diaVencimento, tipo: "fixa" | "eventual" }
+// Body: { nome, valor, categoria, diaVencimento, tipo: "fixa" | "eventual", avisoAntecedenciaDias }
 export async function POST(req: NextRequest) {
   const dados = await req.json();
 
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       categoria: dados.categoria || "Outros",
       diaVencimento: Number(dados.diaVencimento) || 10,
       tipo: dados.tipo === "eventual" ? "eventual" : "fixa",
+      avisoAntecedenciaDias: [1, 7, 14].includes(Number(dados.avisoAntecedenciaDias)) ? Number(dados.avisoAntecedenciaDias) : 7,
     },
   });
 

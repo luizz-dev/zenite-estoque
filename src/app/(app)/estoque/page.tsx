@@ -16,13 +16,14 @@ import { ModalExcluir } from "@/components/estoque/ModalExcluir";
 import { ModalMovimentacao } from "@/components/estoque/ModalMovimentacao";
 import type { Produto, StatusEstoque } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import { PageLoading } from "@/components/ui/Loading";
 
 const POR_PAGINA = 5;
 const TONE_STATUS: Record<StatusEstoque, "green" | "amber" | "red" | "muted"> = { ativo: "green", alerta: "amber", critico: "red", esgotado: "muted" };
 const LABEL_STATUS: Record<StatusEstoque, string> = { ativo: "Ativo", alerta: "Alerta", critico: "Crítico", esgotado: "Esgotado" };
 
 export default function EstoquePage() {
-  const { produtos, empresa } = useApp();
+  const { produtos, empresa, carregando } = useApp();
   const router = useRouter();
 
   const [catFiltro, setCatFiltro] = useState("Todas");
@@ -50,6 +51,8 @@ export default function EstoquePage() {
       return cmp * sortDir;
     });
   }, [produtos, catFiltro, stFiltro, sortCol, sortDir]);
+
+  if (carregando) return <PageLoading titulo="Visualização do Estoque" />;
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const exibidos = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);

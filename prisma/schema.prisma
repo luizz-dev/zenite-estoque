@@ -114,10 +114,11 @@ model ContaFixa {
   categoria     String   @default("Outros")
   diaVencimento Int      @default(10) // dia do mês (1-31)
   tipo          String   @default("fixa") // "fixa" (entra todo mês no cálculo) | "eventual" (não entra automaticamente)
+  avisoAntecedenciaDias Int @default(7) // quantos dias antes do vencimento o alerta deve aparecer (1, 7 ou 14)
   criadoEm      DateTime @default(now())
   atualizadoEm  DateTime @updatedAt
 
-  @@map("contas_fixas")s
+  @@map("contas_fixas")
 }
 
 // Assinatura do usuário no próprio Zênite (SaaS). Linha única, como Empresa.
