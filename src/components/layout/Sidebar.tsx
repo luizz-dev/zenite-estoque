@@ -66,13 +66,15 @@ function NavItem({ href, label, icon, active, badge }: { href: string; label: st
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { naoLidas } = useApp();
+  const { naoLidas, definirUsuario } = useApp();
   const estoqueAtivo = pathname.startsWith("/estoque");
   const [estoqueAberto, setEstoqueAberto] = useState(estoqueAtivo);
 
   const sair = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
+    definirUsuario(null);
     router.push("/login");
+    router.refresh();
   };
 
   return (

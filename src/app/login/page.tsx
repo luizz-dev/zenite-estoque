@@ -7,9 +7,11 @@ import { Mail, KeyRound, AlertTriangle } from "lucide-react";
 import { C } from "@/lib/constants";
 import { AuthBackground, AuthSplitCard, AuthField } from "@/components/auth/AuthLayout";
 import { BtnPrimary } from "@/components/ui/Button";
+import { useApp } from "@/context/AppContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { recarregarTudo } = useApp();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [lembrar, setLembrar] = useState(true);
@@ -26,6 +28,7 @@ export default function LoginPage() {
       const data = await res.json();
       return setErro(data.erro || "Não foi possível entrar.");
     }
+    await recarregarTudo();
     router.push("/dashboard");
     router.refresh();
   };

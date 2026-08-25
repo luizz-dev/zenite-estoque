@@ -8,6 +8,7 @@ import { AuthBackground, OnboardingStepper } from "@/components/auth/AuthLayout"
 import { Card } from "@/components/ui/Card";
 import { Input, Select, FieldLabel } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost } from "@/components/ui/Button";
+import { useApp } from "@/context/AppContext";
 
 // Etapa 2 de 2 (Assinatura/Pagamento). Ao concluir, o usuário já cai
 // direto no Dashboard do Zênite — os dados fiscais (Certificado A1,
@@ -15,6 +16,7 @@ import { BtnPrimary, BtnGhost } from "@/components/ui/Button";
 // sistema, em Perfil > Dados Fiscais, ou na primeira emissão de NF-e.
 export default function CheckoutPage() {
   const router = useRouter();
+  const { recarregarTudo } = useApp();
   const [tipo, setTipo] = useState<"PF" | "PJ">("PF");
   const [doc, setDoc] = useState("");
   const [cep, setCep] = useState("");
@@ -42,6 +44,7 @@ export default function CheckoutPage() {
       const data = await res.json();
       return setErro(data.erro || "Não foi possível concluir o cadastro.");
     }
+    await recarregarTudo();
     router.push("/dashboard");
     router.refresh();
   };
