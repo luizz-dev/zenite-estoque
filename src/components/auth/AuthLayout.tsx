@@ -1,92 +1,216 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Globe } from "lucide-react";
+import React from "react";
+import Image from "next/image";
 import { C } from "@/lib/constants";
+import logoBranco from "@/img/logo_principal_branco_zenite.png";
 
-const LogoMark = ({ size = 92 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="white" style={{ opacity: 0.96 }}>
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-  </svg>
-);
-
-export function AuthBackground({ children }: { children: ReactNode }) {
+// 1. Fundo da tela (Sem a malha de pontos)
+export function AuthBackground({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
-      minHeight: "100vh", width: "100%", position: "relative", overflow: "hidden",
-      background: "radial-gradient(ellipse 120% 70% at 50% -10%, #241b52 0%, #140f38 45%, #0a0620 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
-    }}>
-      <div style={{
-        position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(255,255,255,0.55) 1px, transparent 1.5px)",
-        backgroundSize: "44px 44px", opacity: 0.45, pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", top: 56, left: "50%", transform: "translateX(-50%)", display: "flex",
-        flexDirection: "column", alignItems: "center", pointerEvents: "none", userSelect: "none", whiteSpace: "nowrap",
-      }}>
-        <Globe size={24} style={{ color: "rgba(255,255,255,0.16)", marginBottom: 10 }} />
-        <span style={{ fontSize: "clamp(48px,9vw,104px)", fontWeight: 800, letterSpacing: 12, color: "rgba(255,255,255,0.055)" }}>ZÊNITE</span>
-      </div>
-      <div style={{ position: "relative", zIndex: 1, width: "100%", display: "flex", justifyContent: "center" }}>{children}</div>
-    </div>
-  );
-}
-
-export function AuthSplitCard({ orangeSide = "right", children }: { orangeSide?: "left" | "right"; children: ReactNode }) {
-  const orange = (
-    <div style={{ flex: "0 0 260px", background: `linear-gradient(135deg,${C.orange},${C.orangeHov})`, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
-      <LogoMark />
-    </div>
-  );
-  const form = (
-    <div style={{ flex: 1, minWidth: 300, background: "rgba(13,18,38,0.88)", backdropFilter: "blur(12px)", padding: "38px 42px" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: C.bg, // Mantém a cor escura de fundo padrão
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* O texto de fundo 'ZÊNITE' e a malha de pontos foram removidos daqui */}
       {children}
     </div>
   );
+}
+
+// 2. Card dividido (Lado laranja com a imagem + Formulário)
+export function AuthSplitCard({
+  children,
+  orangeSide = "left",
+}: {
+  children: React.ReactNode;
+  orangeSide?: "left" | "right";
+}) {
+  const isLeft = orangeSide === "left";
+
+  const OrangeSideContent = (
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: C.orange,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 32,
+        minHeight: 240,
+      }}
+    >
+      {/* Subtituição da estrela pela sua imagem (Coloque o arquivo da imagem na pasta 'public/') */}
+      <Image
+        src={logoBranco}
+        alt="Logo"
+        width={250}
+        height={250}
+        style={{ objectFit: "contain" }}
+      />
+    </div>
+  );
+
+  const FormSideContent = (
+    <div
+      style={{
+        flex: 1.2,
+        backgroundColor: "#0F172A",
+        padding: 42,
+        paddingLeft:60,
+        paddingRight:60,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+      }}
+    >
+      {children}
+    </div>
+  );
+
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", width: "100%", maxWidth: 720, borderRadius: 20, overflow: "hidden", boxShadow: "0 30px 90px rgba(0,0,0,0.55)", border: `1px solid ${C.border}` }}>
-      {orangeSide === "right" ? <>{form}{orange}</> : <>{orange}{form}</>}
+    <div
+      style={{
+        width: "60vw",
+        borderRadius: 16,
+        overflow: "hidden",
+        border: `1px solid ${C.border}`,
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        flexDirection: isLeft ? "row" : "row-reverse",
+      }}
+    >
+      {OrangeSideContent}
+      {FormSideContent}
     </div>
   );
 }
 
-export function AuthField({ label, icon, ...props }: { label: string; icon: ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) {
+// 3. Indicador de passos (Stepper)
+export function OnboardingStepper({
+  atual,
+  total,
+}: {
+  atual: number;
+  total: number;
+}) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: "#C7D2E8", display: "block", marginBottom: 6 }}>{label}</label>
-      <div style={{ position: "relative" }}>
-        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.textMuted, display: "flex" }}>{icon}</span>
-        <input {...props} style={{
-          width: "100%", background: C.cardInner, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 14px 11px 36px",
-          fontSize: 13.5, color: C.white, outline: "none", boxSizing: "border-box",
-        }} />
-      </div>
-    </div>
-  );
-}
-
-export function OnboardingStepper({ atual, total = 2 }: { atual: number; total?: number }) {
-  const steps = total === 2 ? ["Cadastro", "Pagamento"] : ["Cadastro", "Assinatura", "Config. NF-e"];
-  return (
-    <div style={{ display: "flex", alignItems: "center", width: "100%", maxWidth: 500, marginBottom: 22 }}>
-      {steps.map((s, i) => {
-        const n = i + 1, done = n < atual, active = n === atual;
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 24,
+      }}
+    >
+      {Array.from({ length: total }).map((_, i) => {
+        const passo = i + 1;
+        const ativo = passo === atual;
         return (
-          <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
-              {i > 0 && <div style={{ flex: 1, height: 2, background: done || active ? "linear-gradient(90deg,#4837E8,rgba(72,55,232,0.3))" : "rgba(255,255,255,0.12)" }} />}
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 700, flexShrink: 0, background: done || active ? C.purple1 : "rgba(255,255,255,0.1)",
-                color: done || active ? C.white : "#8C9CC1", border: `2px solid ${done || active ? C.purple1 : "rgba(255,255,255,0.15)"}`,
-              }}>{done ? "✓" : n}</div>
-              {i < steps.length - 1 && <div style={{ flex: 1, height: 2, background: done ? "rgba(72,55,232,0.5)" : "rgba(255,255,255,0.12)" }} />}
+          <React.Fragment key={passo}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                backgroundColor: ativo ? C.orange : "rgba(255,255,255,0.1)",
+                color: ativo ? C.white : C.textMuted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
+                fontWeight: 700,
+              }}
+            >
+              {passo}
             </div>
-            <p style={{ color: active ? C.purpleText : done ? C.cyanText : "#8C9CC1", fontSize: 11, fontWeight: 500, margin: "6px 0 0" }}>{s}</p>
-          </div>
+            {passo < total && (
+              <div
+                style={{
+                  width: 40,
+                  height: 2,
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                }}
+              />
+            )}
+          </React.Fragment>
         );
       })}
+    </div>
+  );
+}
+
+// 4. Campos de Input reutilizáveis do formulário
+export function AuthField({
+  label,
+  icon,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+  onKeyDown,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: 16,
+          color: C.textMuted,
+          marginBottom: 6,
+          fontWeight: 500,
+        }}
+      >
+        {label}
+      </label>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        {icon && (
+          <span
+            style={{
+              position: "absolute",
+              left: 12,
+              color: C.textMuted,
+              display: "flex",
+            }}
+          >
+            {icon}
+          </span>
+        )}
+        <input
+          type={type}
+          value={value}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          style={{
+            width: "100%",
+            backgroundColor: "rgba(255,255,255,0.05)",
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            paddingLeft: icon ? 36 : 12,
+            color: C.white,
+            fontSize: 16,
+            outline: "none",
+          }}
+        />
+      </div>
     </div>
   );
 }
