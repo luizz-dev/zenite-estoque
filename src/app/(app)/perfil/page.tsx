@@ -22,7 +22,7 @@ function LinhaAssinatura({ label, valor, corValor }: { label: string; valor: str
 }
 
 export default function PerfilPage() {
-  const { usuario, empresa, assinatura, carregando } = useApp();
+  const { usuario, empresa, assinatura, carregando, definirUsuario } = useApp();
   const router = useRouter();
   const [modalAssinatura, setModalAssinatura] = useState<false | "plano" | "cancelar">(false);
   const [saindo, setSaindo] = useState(false);
@@ -32,7 +32,9 @@ export default function PerfilPage() {
   const sair = async () => {
     setSaindo(true);
     await fetch("/api/auth/logout", { method: "POST" });
+    definirUsuario(null);
     router.push("/login");
+    router.refresh();
   };
 
   const iniciais = (usuario?.nome || "U").slice(0, 2).toUpperCase();

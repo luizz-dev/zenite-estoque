@@ -5,6 +5,9 @@ import "@/app/globals.css";
 export const metadata: Metadata = {
   title: "Zênite — Gestão Fiscal e Estoque",
   description: "Controle de estoque e emissão de NF-e para o MEI",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
