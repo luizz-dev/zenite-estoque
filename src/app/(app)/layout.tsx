@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!usuarioId) redirect("/login");
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg }}>
+    <div style={{ display: "flex", height: "100vh", background: C.bg }}>
       <Sidebar />
       <main style={{ flex: 1, overflowY: "auto", padding: "28px 32px", minWidth: 0 }}>
         {children}
