@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Tag, Info, AlertTriangle, Check, Eye } from "lucide-react";
 import { C } from "@/lib/constants";
@@ -22,18 +22,71 @@ const STEP_DICAS = [
   "O NCM incorreto é a principal causa de rejeição de notas fiscais pela SEFAZ.",
   "Após cadastrar, o produto já estará disponível para emissão de NF-e imediatamente.",
 ];
-
 const inputStyle = { fontSize: 16 };
 
+// Item da lista de sugestões de categoria — hover via estado local (mesmo
+// padrão do NavItem da Sidebar), sem mexer direto no style do DOM.
+function SugestaoCategoriaItem({ label, onSelect }: { label: string; onSelect: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()} // evita que o blur do input feche a lista antes do clique
+      onClick={onSelect}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "block", width: "100%", textAlign: "left", padding: "9px 14px",
+        background: hov ? "rgba(255,255,255,0.05)" : "transparent", border: "none", cursor: "pointer",
+        color: hov ? C.white : C.textSec, fontSize: 14.5, transition: "background 0.12s, color 0.12s",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function CadastrarItemPage() {
-  const { criarProduto } = useApp();
+  const { criarProduto, produtos } = useApp();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(FORM_VAZIO);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
+
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // ---- Autocomplete de categoria -------------------------------------
+  const categoriasExistentes = useMemo(
+    () => Array.from(new Set(produtos.map((p) => p.categoria).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [produtos]
+  );
+
+  const [categoriaAberta, setCategoriaAberta] = useState(false);
+  const categoriaBlurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sugestoesCategoria = useMemo(() => {
+    const termo = form.categoria.trim().toLowerCase();
+    const lista = termo ? categoriasExistentes.filter((c) => c.toLowerCase().includes(termo)) : categoriasExistentes;
+    return lista.slice(0, 8);
+  }, [categoriasExistentes, form.categoria]);
+
+  const selecionarCategoria = (cat: string) => {
+    set("categoria", cat);
+    setCategoriaAberta(false);
+  };
+
+  const abrirSugestoesCategoria = () => {
+    if (categoriaBlurTimeout.current) clearTimeout(categoriaBlurTimeout.current);
+    setCategoriaAberta(true);
+  };
+
+  const fecharSugestoesCategoria = () => {
+    // pequeno delay pra dar tempo do onClick do item disparar antes de esconder a lista
+    categoriaBlurTimeout.current = setTimeout(() => setCategoriaAberta(false), 150);
+  };
+  // ----------------------------------------------------------------------
 
   const margem = form.precoCusto && form.precoVenda ? pctMargem(+form.precoCusto, +form.precoVenda) : null;
   const lucroUn = form.precoCusto && form.precoVenda ? brl(+form.precoVenda - +form.precoCusto) : null;
@@ -148,10 +201,36 @@ export default function CadastrarItemPage() {
                   <Input value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="Ex: VST-0021" />
                   <p style={{ color: C.textMuted, fontSize: 14.5, margin: "5px 0 0" }}>Identificador único do produto</p>
                 </div>
-                <div>
+
+                <div style={{ position: "relative" }}>
                   <FieldLabel>Categoria <span style={{ color: C.red }}>*</span></FieldLabel>
-                  <Input value={form.categoria} onChange={(e) => set("categoria", e.target.value)} placeholder="Ex: Vestidos" />
+                  <Input
+                    value={form.categoria}
+                    onChange={(e) => set("categoria", e.target.value)}
+                    onFocus={abrirSugestoesCategoria}
+                    onBlur={fecharSugestoesCategoria}
+                    placeholder="Ex: Vestidos"
+                    autoComplete="off"
+                  />
+                  {categoriasExistentes.length > 0 && (
+                    <p style={{ color: C.textMuted, fontSize: 14.5, margin: "5px 0 0" }}>
+                      {categoriasExistentes.length} categoria{categoriasExistentes.length > 1 ? "s" : ""} já cadastrada{categoriasExistentes.length > 1 ? "s" : ""}
+                    </p>
+                  )}
+
+                  {categoriaAberta && sugestoesCategoria.length > 0 && (
+                    <div style={{
+                      position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 20,
+                      background: C.cardInner, border: `1px solid ${C.border}`, borderRadius: 10,
+                      boxShadow: "0 12px 28px rgba(0,0,0,0.4)", overflow: "hidden", maxHeight: 208, overflowY: "auto",
+                    }}>
+                      {sugestoesCategoria.map((cat) => (
+                        <SugestaoCategoriaItem key={cat} label={cat} onSelect={() => selecionarCategoria(cat)} />
+                      ))}
+                    </div>
+                  )}
                 </div>
+
                 <div style={{ gridColumn: "1/-1" }}>
                   <FieldLabel>Unidade de Medida</FieldLabel>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -194,6 +273,7 @@ export default function CadastrarItemPage() {
                     <Input type="number" value={form.precoVenda} onChange={(e) => set("precoVenda", e.target.value)} placeholder="0,00" style={{ paddingLeft: 36 }} />
                   </div>
                 </div>
+
                 {(form.precoCusto || form.precoVenda || form.quantidade) && (
                   <div style={{ gridColumn: "1/-1", border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", borderRadius: 12, padding: 16, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
                     {[
@@ -224,6 +304,7 @@ export default function CadastrarItemPage() {
                     <p style={{ color: C.textMuted, fontSize: 14.5, margin: "5px 0 0" }}>Nomenclatura Comum do Mercosul — cada tipo de peça pode ter um NCM diferente</p>
                   </div>
                 </div>
+
                 <div style={{ borderRadius: 12, border: "1px solid rgba(245,124,0,0.22)", background: "rgba(245,124,0,0.06)", padding: "12px 14px", display: "flex", gap: 10 }}>
                   <span style={{ color: C.amber, display: "flex", flexShrink: 0, marginTop: 1 }}><AlertTriangle size={15} /></span>
                   <div>
@@ -231,6 +312,7 @@ export default function CadastrarItemPage() {
                     <p style={{ color: C.textMuted, fontSize: 14, margin: 0, lineHeight: 1.5 }}>Verifique o código na tabela NCM disponível no portal da Receita Federal antes de cadastrar. Definir aqui evita retrabalho na hora de emitir a nota.</p>
                   </div>
                 </div>
+
                 <div>
                   <FieldLabel>Descrição Técnica</FieldLabel>
                   <textarea value={form.descricao} onChange={(e) => set("descricao", e.target.value)}
@@ -260,12 +342,14 @@ export default function CadastrarItemPage() {
                     ))}
                   </div>
                 </div>
+
                 {form.descricao && (
                   <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", padding: "12px 14px" }}>
                     <p style={{ color: C.textMuted, fontSize: 14, margin: "0 0 4px" }}>Descrição Técnica</p>
                     <p style={{ color: C.textSec, fontSize: 14.5, margin: 0, lineHeight: 1.6 }}>{form.descricao}</p>
                   </div>
                 )}
+
                 <div style={{ borderRadius: 12, border: "1px solid rgba(74,222,128,0.2)", background: "rgba(74,222,128,0.05)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ color: C.green, display: "flex" }}><Check size={16} /></span>
                   <p style={{ color: C.green, fontSize: 14, fontWeight: 600, margin: 0 }}>Pronto para cadastrar — todos os campos preenchidos</p>
@@ -319,6 +403,7 @@ export default function CadastrarItemPage() {
               )}
             </div>
           </Card>
+
           <Card style={{ background: C.cardInner }}>
             <p style={{ color: C.cyanText, fontSize: 11.5, fontWeight: 600, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}><Info size={14} /> Dica desta etapa</p>
             <p style={{ color: C.textSec, fontSize: 12, lineHeight: 1.6, margin: 0 }}>{STEP_DICAS[step - 1]}</p>
