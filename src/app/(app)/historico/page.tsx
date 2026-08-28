@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, ChevronDown } from "lucide-react";
+import { Filter, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { C, STATUS_FISCAL_INFO } from "@/lib/constants";
 import { FORMAS_PAGAMENTO } from "@/lib/constants";
 import { brl } from "@/lib/utils";
@@ -12,6 +12,8 @@ import { useApp } from "@/context/AppContext";
 import type { StatusFiscal } from "@/lib/types";
 import { PageLoading } from "@/components/ui/Loading";
 
+const ITENS_POR_PAGINA = 10;
+
 type Evento =
   | { tipo: "entrada" | "saida"; id: string; item: string; qtd: number; motivo?: string | null; observacao?: string | null; data: string }
   | { tipo: "nfe"; id: string; numero: number; itens: { nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }[]; valorTotal: number; destinatarioNome: string; destinatarioDoc: string; destinatarioUf: string; formaPagamento: string; statusFiscal: StatusFiscal; motivoRejeicao?: string | null; data: string };
@@ -19,9 +21,15 @@ type Evento =
 export default function HistoricoPage() {
   const { movimentacoes, notas, carregando } = useApp();
   const [filtro, setFiltro] = useState<"todos" | "entrada" | "saida" | "nfe">("todos");
-
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
+  const [pagina, setPagina] = useState(1);
+
   const toggleExpandir = (id: string) => setExpandido((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const handleFiltro = (novo: "todos" | "entrada" | "saida" | "nfe") => {
+    setFiltro(novo);
+    setPagina(1); // volta pra primeira página sempre que o filtro muda
+  };
 
   const eventos: Evento[] = useMemo(() => {
     const movs: Evento[] = movimentacoes.map((m) => ({ tipo: m.tipo, id: m.id, item: m.item, qtd: m.quantidade, motivo: m.motivo, observacao: m.observacao, data: m.data }));
@@ -37,6 +45,13 @@ export default function HistoricoPage() {
 
   const exibidos = filtro === "todos" ? eventos : eventos.filter((e) => e.tipo === filtro);
 
+  const totalPaginas = Math.max(1, Math.ceil(exibidos.length / ITENS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const exibidosPagina = exibidos.slice(inicio, inicio + ITENS_POR_PAGINA);
+
+  const irParaPagina = (p: number) => setPagina(Math.min(Math.max(1, p), totalPaginas));
+
   const infoTipo = { entrada: { label: "Entrada de Item", color: C.green, dot: "#4ADE80" }, saida: { label: "Saída de Item", color: C.cyanText, dot: C.cyan }, nfe: { label: "NF-e Emitida", color: C.purpleText, dot: C.purple1 } };
 
   return (
@@ -47,7 +62,7 @@ export default function HistoricoPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.textSec, fontSize: 18 }}><Filter size={18} /> Filtrar por tipo</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {([["todos", "Todos"], ["entrada", "Entradas"], ["saida", "Saídas"], ["nfe", "Notas Fiscais"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setFiltro(k)} style={{
+              <button key={k} onClick={() => handleFiltro(k)} style={{
                 padding: "7px 14px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 14.5, fontWeight: 500, cursor: "pointer",
                 background: filtro === k ? C.purple1 : "rgba(255,255,255,0.02)", color: filtro === k ? C.white : C.textSec,
               }}>{l}</button>
@@ -56,17 +71,17 @@ export default function HistoricoPage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {exibidos.length === 0 && <p style={{ color: C.textMuted, fontSize: 15, textAlign: "center", padding: "30px 0" }}>Nenhuma movimentação para esse filtro.</p>}
-          {exibidos.map((ev, idx) => {
+          {exibidosPagina.length === 0 && <p style={{ color: C.textMuted, fontSize: 15, textAlign: "center", padding: "30px 0" }}>Nenhuma movimentação para esse filtro.</p>}
+          {exibidosPagina.map((ev, idx) => {
             const info = infoTipo[ev.tipo];
             const isNfe = ev.tipo === "nfe";
             const isOpen = expandido.has(ev.id);
             const qtdTotal = isNfe ? ev.itens.reduce((a, i) => a + i.quantidade, 0) : ev.qtd;
             return (
-              <div key={ev.id} style={{ display: "flex", gap: 14, paddingBottom: idx < exibidos.length - 1 ? 18 : 0 }}>
+              <div key={ev.id} style={{ display: "flex", gap: 14, paddingBottom: idx < exibidosPagina.length - 1 ? 18 : 0 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
                   <span style={{ width: 12, height: 12, borderRadius: "50%", background: info.dot, marginTop: 14, boxShadow: `0 0 0 3px ${C.card}` }} />
-                  {idx < exibidos.length - 1 && <span style={{ flex: 1, width: 1, background: C.border, marginTop: 4 }} />}
+                  {idx < exibidosPagina.length - 1 && <span style={{ flex: 1, width: 1, background: C.border, marginTop: 4 }} />}
                 </div>
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.015)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "11px 14px", cursor: isNfe ? "pointer" : "default" }}
                   onClick={() => isNfe && toggleExpandir(ev.id)}>
@@ -117,6 +132,71 @@ export default function HistoricoPage() {
             );
           })}
         </div>
+
+        {/* Paginação — só aparece se houver mais de uma página */}
+        {totalPaginas > 1 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 24, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
+            <p style={{ color: C.textMuted, fontSize: 14, margin: 0 }}>
+              Mostrando {inicio + 1}–{Math.min(inicio + ITENS_POR_PAGINA, exibidos.length)} de {exibidos.length}
+            </p>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={() => irParaPagina(paginaAtual - 1)}
+                disabled={paginaAtual === 1}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34,
+                  borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)",
+                  color: paginaAtual === 1 ? C.textMuted : C.white, cursor: paginaAtual === 1 ? "not-allowed" : "pointer",
+                  opacity: paginaAtual === 1 ? 0.5 : 1,
+                }}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPaginas || Math.abs(p - paginaAtual) <= 1)
+                .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} style={{ color: C.textMuted, padding: "0 4px" }}>…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => irParaPagina(p)}
+                      style={{
+                        minWidth: 34, height: 34, padding: "0 8px", borderRadius: 8,
+                        border: `1px solid ${C.border}`, fontSize: 14, fontWeight: 500, cursor: "pointer",
+                        background: p === paginaAtual ? C.purple1 : "rgba(255,255,255,0.02)",
+                        color: p === paginaAtual ? C.white : C.textSec,
+                      }}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+
+              <button
+                onClick={() => irParaPagina(paginaAtual + 1)}
+                disabled={paginaAtual === totalPaginas}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34,
+                  borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)",
+                  color: paginaAtual === totalPaginas ? C.textMuted : C.white, cursor: paginaAtual === totalPaginas ? "not-allowed" : "pointer",
+                  opacity: paginaAtual === totalPaginas ? 0.5 : 1,
+                }}
+                aria-label="Próxima página"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

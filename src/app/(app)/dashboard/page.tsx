@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Coins, Boxes, FileText, AlertTriangle, ArrowUp, ArrowDown, ExternalLink, Wallet } from "lucide-react";
-import { C, STATUS_FISCAL_INFO } from "@/lib/constants";
+import { C } from "@/lib/constants";
 import { MEI } from "@/lib/constants";
-import { brl, pctVariacao, produtosComEstoqueBaixo, calcularLucroMes, ticketPorFormaPagamento } from "@/lib/utils";
+import { brl, pctVariacao, produtosComEstoqueBaixo, calcularLucroMes, ticketPorFormaPagamento, tendenciaOperacional } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -31,8 +31,23 @@ function ChartTooltipTicket({ active, payload }: { active?: boolean; payload?: {
   );
 }
 
+function ChartTooltipTendencia({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: C.sidebar, border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 12px", fontSize: 16, boxShadow: "0 8px 24px rgba(0,0,0,0.35)" }}>
+      <p style={{ color: C.white, margin: "0 0 6px", fontWeight: 700, fontSize: 17 }}>{label}</p>
+      {payload.map((p) => (
+        <p key={p.name} style={{ color: C.textSec, margin: "2px 0", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, display: "inline-block" }} />
+          {p.name}: <strong style={{ color: C.white }}>{p.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-  const { produtos, notas, contasFixas, naoLidas, carregando } = useApp();
+  const { produtos, notas, movimentacoes, contasFixas, naoLidas, carregando } = useApp();
   const [considerarContas, setConsiderarContas] = useState(true);
 
 
@@ -43,6 +58,7 @@ export default function DashboardPage() {
   const lucroExibido = considerarContas ? lucroLiquido : lucroBruto;
 
   const dadosTicket = useMemo(() => ticketPorFormaPagamento(notas), [notas]);
+  const dadosTendencia = useMemo(() => tendenciaOperacional(notas, movimentacoes), [notas, movimentacoes]);
   
   if (carregando) return <PageLoading titulo="Dashboard" />;
 
@@ -182,33 +198,48 @@ export default function DashboardPage() {
       </div>
 
       <Card style={{ marginTop: 14 }}>
-        <h3 style={{ color: C.white, fontSize: 18, fontWeight: 700, margin: "0 0 14px" }}>Notas Fiscais Recentes</h3>
-        <table style={{ width: "100%", fontSize: 15.5, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ color: C.textMuted, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              <th style={{ textAlign: "left", paddingBottom: 10, fontWeight: 500 }}>Nota</th>
-              <th style={{ textAlign: "left", paddingBottom: 10, fontWeight: 500 }}>Itens</th>
-              <th style={{ textAlign: "left", paddingBottom: 10, fontWeight: 500 }}>Total</th>
-              <th style={{ textAlign: "left", paddingBottom: 10, fontWeight: 500 }}>Situação Fiscal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {notas.slice(0, 4).map((n) => {
-              const info = STATUS_FISCAL_INFO[n.statusFiscal] ?? STATUS_FISCAL_INFO.autorizada;
-              return (
-                <tr key={n.id} style={{ borderTop: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "10px 0", color: "#E2E8F5" }}>NF-e #{String(n.numero).padStart(5, "0")}</td>
-                  <td style={{ padding: "10px 0", color: C.textSec }}>{n.itens.length}</td>
-                  <td style={{ padding: "10px 0", color: C.white, fontWeight: 500 }}>{brl(n.valorTotal)}</td>
-                  <td style={{ padding: "10px 0" }}><Badge tone={info.tone}>{info.label}</Badge></td>
-                </tr>
-              );
-            })}
-            {notas.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: "20px 0", color: C.textMuted, textAlign: "center" }}>Nenhuma nota emitida ainda.</td></tr>
-            )}
-          </tbody>
-        </table>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h3 style={{ color: C.white, fontSize: 18, fontWeight: 700, margin: 0 }}>Tendência Operacional</h3>
+            <p style={{ color: C.textSec, fontSize: 16, margin: "2px 0 0" }}>Saídas de estoque vs. NF-e emitidas</p>
+          </div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.textSec, fontSize: 13.5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#7C6CF0", display: "inline-block" }} /> Saídas
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.textSec, fontSize: 13.5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#00B4D8", display: "inline-block" }} /> NF-e
+            </span>
+          </div>
+        </div>
+        <div style={{ width: "100%", height: 260, marginTop: 14 }}>
+          {dadosTendencia.every((m) => m.saidas === 0 && m.nfe === 0) ? (
+            <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 13.5 }}>
+              Ainda não há movimentações ou notas emitidas para mostrar aqui.
+            </div>
+          ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={dadosTendencia} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradSaidas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7C6CF0" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#7C6CF0" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradNfe" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00B4D8" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#00B4D8" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} stroke="white" strokeOpacity={0.05} />
+              <XAxis dataKey="mes" tick={{ fill: C.textMuted, fontSize: 13.5 }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip content={<ChartTooltipTendencia />} cursor={{ stroke: C.border, strokeWidth: 1 }} />
+              <Area type="monotone" name="Saídas" dataKey="saidas" stroke="#7C6CF0" strokeWidth={2.5} fill="url(#gradSaidas)" dot={{ r: 3.5, fill: "#7C6CF0", strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              <Area type="monotone" name="NF-e" dataKey="nfe" stroke="#00B4D8" strokeWidth={2.5} fill="url(#gradNfe)" dot={{ r: 3.5, fill: "#00B4D8", strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+          )}
+        </div>
       </Card>
     </div>
   );

@@ -1,5 +1,5 @@
 import { EMPRESA, FORMAS_PAGAMENTO } from "./constants";
-import type { Produto, StatusEstoque, NotaFiscal, ContaFixa } from "./types";
+import type { Produto, StatusEstoque, NotaFiscal, ContaFixa, Movimentacao } from "./types";
 
 /** Formata um número como moeda brasileira (R$). */
 export const brl = (v: number): string =>
@@ -77,6 +77,40 @@ export const ticketPorFormaPagamento = (notas: NotaFiscal[]) => {
     const ticketMedio = nts.length ? total / nts.length : 0;
     return { forma: f.l, total, ticketMedio, qtd: nts.length };
   }).filter((r) => r.qtd > 0);
+};
+
+const MESES_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+/**
+ * Tendência dos últimos 12 meses: total de unidades que saíram do estoque
+ * (baixas manuais + itens vendidos em notas autorizadas) vs. quantidade de
+ * NF-e emitidas em cada mês.
+ */
+export const tendenciaOperacional = (notas: NotaFiscal[], movimentacoes: Movimentacao[]) => {
+  const hoje = new Date();
+  const meses: { chave: string; mes: string; saidas: number; nfe: number }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    meses.push({ chave: `${d.getFullYear()}-${d.getMonth()}`, mes: MESES_ABREV[d.getMonth()], saidas: 0, nfe: 0 });
+  }
+  const porChave = new Map(meses.map((m) => [m.chave, m]));
+
+  for (const mov of movimentacoes) {
+    if (mov.tipo !== "saida") continue;
+    const d = new Date(mov.data);
+    const alvo = porChave.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (alvo) alvo.saidas += mov.quantidade;
+  }
+  for (const nota of notas) {
+    const d = new Date(nota.emitidaEm);
+    const alvo = porChave.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (!alvo) continue;
+    alvo.nfe += 1;
+    if (nota.statusFiscal === "autorizada") {
+      alvo.saidas += nota.itens.reduce((a, it) => a + it.quantidade, 0);
+    }
+  }
+  return meses.map(({ mes, saidas, nfe }) => ({ mes, saidas, nfe }));
 };
 
 /** Simula a análise da SEFAZ ao emitir uma NF-e (protótipo — não é integração real). */
