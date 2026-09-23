@@ -23,7 +23,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // troque para "sqlite" se quiser testar localmente sem provedor externo
+  provider = "mysql" // troque para "sqlite" se quiser testar localmente sem provedor externo
   url      = env("DATABASE_URL")
 }
 
