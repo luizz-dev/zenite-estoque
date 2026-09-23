@@ -10,7 +10,6 @@ import {
 import { C } from "@/lib/constants";
 import { useApp } from "@/context/AppContext";
 
-
 function Logo() {
   return (
     <div style={{ display: "flex", alignItems: "center", margin:10, gap: 10, padding: "0 4px" }}>
@@ -21,7 +20,7 @@ function Logo() {
       }}>
         {/* Usando a tag HTML <img> padrão */}
         <img 
-          src={"/img/logo_principal_branco_zenite.png"} 
+          src={"/img-icon/logo_principal_branco_zenite.png"} 
           alt="Logo Zênite" 
           style={{ width: "200%", height: "100%", objectFit: "contain", }} 
         />
