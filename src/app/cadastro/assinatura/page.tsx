@@ -1,11 +1,15 @@
 "use client";
 
-// Destino: src/app/cadastro/checkout/page.tsx
-// Etapa 2 de 2 (Cadastro). Usuário já está autenticado nesse ponto
-// (a etapa 1 chama criarSessao). Aqui só completamos:
-//   1) dados de cobrança do Usuario (PATCH /api/auth/cadastro)
-//   2) o plano de assinatura (PATCH /api/assinatura)
-import { useState, type ReactNode } from "react";
+// Destino: src/app/cadastro/assinatura/page.tsx
+// (Renomeado de "checkout" — o nome antigo não refletia o que a página
+// faz: aqui é a Etapa 2 do cadastro, onde a conta e a assinatura são
+// criadas juntas.)
+//
+// Etapa 2 de 2. Lê os dados da Etapa 1 do sessionStorage (nome, email,
+// celular, senha) e, ao finalizar, envia TUDO junto num único POST pra
+// /api/auth/cadastro — que cria o Usuario e a Assinatura na mesma
+// transação e só então autentica a sessão.
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { IdCard, MapPin, Home, AlertTriangle, CreditCard, QrCode, Check } from "lucide-react";
 import { C, PLANOS_ASSINATURA } from "@/lib/constants";
@@ -14,18 +18,56 @@ import { BtnPrimary } from "@/components/ui/Button";
 
 type FormaPagamento = "cartao" | "pix";
 type PlanoValor = (typeof PLANOS_ASSINATURA)[number]["v"];
+type DadosEtapa1 = { nome: string; email: string; celular: string; senha: string };
 
-export default function CheckoutPage() {
+export default function AssinaturaEtapa2Page() {
   const router = useRouter();
+  const [dadosEtapa1, setDadosEtapa1] = useState<DadosEtapa1 | null>(null);
+  const [carregando, setCarregando] = useState(true);
+
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [buscandoCep, setBuscandoCep] = useState(false);
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("cartao");
   const [plano, setPlano] = useState<PlanoValor>("mensal");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  // Sem os dados da Etapa 1, não tem como finalizar — volta pro começo.
+  useEffect(() => {
+    const salvo = sessionStorage.getItem("zenite_cadastro_etapa1");
+    if (!salvo) {
+      router.replace("/cadastro");
+      return;
+    }
+    setDadosEtapa1(JSON.parse(salvo));
+    setCarregando(false);
+  }, [router]);
+
+  // Autocomplete de endereço via ViaCEP (API pública/gratuita, sem chave).
+  // Dispara sozinho quando o CEP tiver 8 dígitos.
+  useEffect(() => {
+    const digits = cep.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+
+    let cancelado = false;
+    setBuscandoCep(true);
+    fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelado || data.erro) return;
+        const partes = [data.logradouro, data.bairro, data.localidade && data.uf ? `${data.localidade}/${data.uf}` : ""].filter(Boolean);
+        if (partes.length) setEndereco(partes.join(" - "));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setBuscandoCep(false); });
+
+    return () => { cancelado = true; };
+  }, [cep]);
+
   const finalizar = async () => {
+    if (!dadosEtapa1) return;
     if (!cpfCnpj.trim() || !cep.trim() || !endereco.trim()) {
       return setErro("Preencha CPF/CNPJ, CEP e endereço para continuar.");
     }
@@ -33,30 +75,22 @@ export default function CheckoutPage() {
     setErro("");
     setEnviando(true);
 
-    const resDados = await fetch("/api/auth/cadastro", {
-      method: "PATCH",
+    const res = await fetch("/api/auth/cadastro", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cpfCnpj, cep, endereco, formaPagamento }),
-    });
-    if (!resDados.ok) {
-      setEnviando(false);
-      const data = await resDados.json();
-      return setErro(data.erro || "Não foi possível salvar seus dados de cobrança.");
-    }
-
-    const resPlano = await fetch("/api/assinatura", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ acao: "trocar-plano", plano }),
+      body: JSON.stringify({ ...dadosEtapa1, cpfCnpj, cep, endereco, formaPagamento, plano }),
     });
     setEnviando(false);
-    if (!resPlano.ok) {
-      const data = await resPlano.json();
-      return setErro(data.erro || "Não foi possível confirmar o plano escolhido.");
+    if (!res.ok) {
+      const data = await res.json();
+      return setErro(data.erro || "Não foi possível concluir o cadastro.");
     }
 
+    sessionStorage.removeItem("zenite_cadastro_etapa1");
     router.push("/dashboard");
   };
+
+  if (carregando) return null;
 
   return (
     <AuthBackground>
@@ -70,6 +104,7 @@ export default function CheckoutPage() {
 
           <AuthField label="CPF ou CNPJ" icon={<IdCard size={14} />} value={cpfCnpj} onChange={(e) => setCpfCnpj(e.target.value)} placeholder="Ex: 123.456.789-00" />
           <AuthField label="CEP" icon={<MapPin size={14} />} value={cep} onChange={(e) => setCep(e.target.value)} placeholder="Ex: 01310-100" />
+          {buscandoCep && <p style={{ color: C.textMuted, fontSize: 11, margin: "-10px 0 12px" }}>Buscando endereço...</p>}
           <AuthField label="Endereço" icon={<Home size={14} />} value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Ex: Av. Paulista, 1000 — São Paulo/SP" />
 
           <div style={{ marginBottom: 16 }}>

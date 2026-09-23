@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { C } from "@/lib/constants";
 import { useApp } from "@/context/AppContext";
-import logoImg from "@/img/logo_principal_branco_zenite.png";  
+
 
 function Logo() {
   return (
@@ -21,7 +21,7 @@ function Logo() {
       }}>
         {/* Usando a tag HTML <img> padrão */}
         <img 
-          src={logoImg.src} 
+          src={"/img/logo_principal_branco_zenite.png"} 
           alt="Logo Zênite" 
           style={{ width: "200%", height: "100%", objectFit: "contain", }} 
         />
