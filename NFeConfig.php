@@ -181,7 +181,7 @@ class NFeConfig
             'test_series' => [900, 901, 902, 903, 904, 905],
 
             // Timeout maior para testes
-            'timeout' => 30,
+            'timeout' => 60,
 
             // Versão da NFe (geralmente 4.0)
             'nfe_version' => '4.00',
@@ -220,7 +220,7 @@ class NFeConfig
             ],
 
             // Timeout menor em produção (deve ser rápido)
-            'timeout' => 60,
+            'timeout' => 30,
 
             // Versão da NFe
             'nfe_version' => '4.00',
@@ -430,7 +430,7 @@ class NFeConfig
             'cnpj' => $this->getCnpj(),
             'ambient_code' => $this->getAmbientCode(),
             'timeout' => $this->getTimeout(),
-            'service_urls' => $this->settings['service_urls'] ?? {},
+            'service_urls' => $this->settings['service_urls'] ?? [],
             // Propositalmente não inclui: certificate_password
         ];
     }
