@@ -7,7 +7,7 @@
 // transação. Depois mostra a tela de verificação e leva ao login.
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { IdCard, MapPin, Home, Hash, AlertTriangle, CreditCard, QrCode, Check } from "lucide-react";
+import { IdCard, MapPin, Home, Hash, Building2, AlertTriangle, CreditCard, QrCode, Check } from "lucide-react";
 import { C, PLANOS_ASSINATURA } from "@/lib/constants";
 import { AuthBackground, AuthSplitCard, AuthField, OnboardingStepper } from "@/components/auth/AuthLayout";
 import { BtnPrimary } from "@/components/ui/Button";
@@ -31,9 +31,11 @@ export default function AssinaturaEtapa2Page() {
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
   const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
   const [buscandoCep, setBuscandoCep] = useState(false);
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("cartao");
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | null>(null);
   const [plano, setPlano] = useState<PlanoValor>("mensal");
+  const [planoRecolhido, setPlanoRecolhido] = useState(true);
   const [erro, setErro] = useState("");
 
   const [etapa, setEtapa] = useState<Etapa>("form");
@@ -77,6 +79,7 @@ export default function AssinaturaEtapa2Page() {
 
   const trocarPlano = (novo: PlanoValor) => {
     setPlano(novo);
+    setPlanoRecolhido(true); // esconde o outro card pra economizar altura
     setPixConfirmado(false); // o valor mudou, o Pix precisa ser gerado de novo
     setCartao((c) => (c ? { ...c, parcelas: 1 } : c)); // parcelas dependem do plano
   };
@@ -89,6 +92,10 @@ export default function AssinaturaEtapa2Page() {
   const validarDados = () => {
     if (!cpfCnpj.trim() || !cep.trim() || !endereco.trim() || !numero.trim()) {
       setErro("Preencha CPF/CNPJ, CEP, endereço e número para continuar.");
+      return false;
+    }
+    if (!formaPagamento) {
+      setErro("Escolha a forma de pagamento (Cartão ou Pix) para continuar.");
       return false;
     }
     setErro("");
@@ -109,7 +116,7 @@ export default function AssinaturaEtapa2Page() {
           ...dadosEtapa1,
           cpfCnpj,
           cep,
-          endereco: `${endereco}, nº ${numero.trim()}`,
+          endereco: `${endereco}, nº ${numero.trim()}${complemento.trim() ? ` - ${complemento.trim()}` : ""}`,
           formaPagamento,
           plano,
         }),
@@ -148,6 +155,15 @@ export default function AssinaturaEtapa2Page() {
     if (validarDados()) processar();
   };
 
+  // Dica de acessibilidade: deixa claro que é preciso clicar pra preencher
+  const dicaPagamento = !formaPagamento
+    ? "Selecione uma opção — uma janela abrirá para você preencher os dados."
+    : formaPagamento === "cartao" && !cartao
+    ? "Dados do cartão pendentes — clique em Cartão de Crédito para preencher."
+    : formaPagamento === "pix" && !pixConfirmado
+    ? "Pix pendente — clique em Pix para gerar o código."
+    : "";
+
   if (carregando) return null;
 
   return (
@@ -177,6 +193,8 @@ export default function AssinaturaEtapa2Page() {
                 </div>
               </div>
 
+              <AuthField label="Complemento (opcional)" icon={<Building2 size={14} />} value={complemento} onChange={(e) => setComplemento(e.target.value)} placeholder="Ex: Apto 12, Bloco B" />
+
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontSize: 16, color: C.textMuted, marginBottom: 6, fontWeight: 500 }}>
                   Forma de pagamento
@@ -185,15 +203,32 @@ export default function AssinaturaEtapa2Page() {
                   <SeletorBotao ativo={formaPagamento === "cartao"} onClick={() => escolherPagamento("cartao")} icon={<CreditCard size={16} />} label="Cartão de Crédito" />
                   <SeletorBotao ativo={formaPagamento === "pix"} onClick={() => escolherPagamento("pix")} icon={<QrCode size={16} />} label="Pix" />
                 </div>
+                {dicaPagamento && (
+                  <p style={{ color: C.textMuted, fontSize: 11.5, margin: "6px 0 0" }}>{dicaPagamento}</p>
+                )}
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: 16, color: C.textMuted, marginBottom: 6, fontWeight: 500 }}>
-                  Plano
-                </label>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                  <label style={{ fontSize: 16, color: C.textMuted, fontWeight: 500 }}>Plano</label>
+                  {planoRecolhido && (
+                    <button
+                      type="button"
+                      onClick={() => setPlanoRecolhido(false)}
+                      style={{ background: "none", border: "none", padding: 0, color: C.orange, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Alterar
+                    </button>
+                  )}
+                </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {PLANOS_ASSINATURA.map((p) => (
-                    <CardPlano key={p.v} ativo={plano === p.v} plano={p} onClick={() => trocarPlano(p.v)} />
+                  {PLANOS_ASSINATURA.filter((p) => !planoRecolhido || p.v === plano).map((p) => (
+                    <CardPlano
+                      key={p.v}
+                      ativo={plano === p.v}
+                      plano={p}
+                      onClick={() => (planoRecolhido ? setPlanoRecolhido(false) : trocarPlano(p.v))}
+                    />
                   ))}
                 </div>
               </div>
@@ -268,12 +303,13 @@ function TelaStatus({ etapa }: { etapa: "aguardando" | "sucesso" }) {
   );
 }
 
-/* ───────────── Componentes de seleção (inalterados) ───────────── */
+/* ───────────── Componentes de seleção ───────────── */
 
 function SeletorBotao({ ativo, onClick, icon, label }: { ativo: boolean; onClick: () => void; icon: ReactNode; label: string }) {
   return (
     <button
       type="button"
+      aria-pressed={ativo}
       onClick={onClick}
       style={{
         flex: 1,
