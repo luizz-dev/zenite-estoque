@@ -7,7 +7,7 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
-  celular: string;
+  celular: celular?: string | null;
   cpfCnpj?: string | null;
   cep?: string | null;
   endereco?: string | null;

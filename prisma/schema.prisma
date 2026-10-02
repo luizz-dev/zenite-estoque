@@ -28,15 +28,19 @@ datasource db {
 }
 
 model Usuario {
+  
+
+
   id           String   @id @default(cuid())
   nome         String
   email        String   @unique
-  senhaHash    String   // NUNCA salve senha em texto puro — sempre hash (ver src/lib/auth.ts)
-  celular      String
+  senhaHash String?   // NUNCA salve senha em texto puro — sempre hash (ver src/lib/auth.ts)
+  celular   String?
   cpfCnpj      String?
   cep          String?
   endereco     String?
   formaPagamento String? // "cartao" | "pix" — apenas informativo neste protótipo
+  googleId  String? @unique
   criadoEm     DateTime @default(now())
 
   @@map("usuarios")

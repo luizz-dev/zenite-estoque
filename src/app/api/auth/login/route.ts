@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   const usuario = await prisma.usuario.findUnique({ where: { email } });
-  if (!usuario || !(await verificarSenha(senha, usuario.senhaHash))) {
+  if (!usuario || !usuario.senhaHash || !(await verificarSenha(senha, usuario.senhaHash))) {
     return NextResponse.json({ erro: "E-mail ou senha incorretos." }, { status: 401 });
   }
 

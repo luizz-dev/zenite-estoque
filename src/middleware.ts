@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ROTAS_PUBLICAS = ["/login", "/cadastro", "/cadastro/checkout"];
+const ROTAS_PUBLICAS = ["/login", "/cadastro"];
 
 // Roda antes de qualquer página. Não usa Prisma aqui (middleware roda no
 // Edge Runtime) — só olha se o cookie de sessão existe ou não.
