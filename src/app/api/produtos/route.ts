@@ -1,28 +1,34 @@
+// Destino: src/app/api/produtos/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { obterUsuarioIdDaSessao } from "@/lib/auth";
 
-// GET /api/produtos — lista todos os produtos (usado no Estoque e no Dashboard)
 export async function GET() {
-  const produtos = await prisma.produto.findMany({ orderBy: { nome: "asc" } });
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
+  const produtos = await prisma.produto.findMany({ where: { usuarioId }, orderBy: { nome: "asc" } });
   return NextResponse.json(produtos);
 }
 
-// POST /api/produtos — cria um novo produto (tela Estoque > Cadastrar Itens)
-// É AQUI que o NCM entra: no cadastro do produto, não na hora de emitir a nota.
 export async function POST(req: NextRequest) {
-  const dados = await req.json();
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
+  const dados = await req.json();
   if (!dados.nome?.trim() || !dados.sku?.trim() || !dados.ncm?.trim()) {
     return NextResponse.json({ erro: "Nome, SKU e NCM são obrigatórios." }, { status: 400 });
   }
 
-  const existente = await prisma.produto.findUnique({ where: { sku: dados.sku } });
+  // SKU único POR USUÁRIO (ver @@unique([usuarioId, sku]) no schema)
+  const existente = await prisma.produto.findUnique({ where: { usuarioId_sku: { usuarioId, sku: dados.sku } } });
   if (existente) {
     return NextResponse.json({ erro: "Já existe um produto com esse SKU." }, { status: 409 });
   }
 
   const produto = await prisma.produto.create({
     data: {
+      usuarioId,
       nome: dados.nome,
       sku: dados.sku,
       categoria: dados.categoria || "Outros",

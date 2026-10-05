@@ -1,11 +1,4 @@
 // Destino: src/app/api/auth/cadastro/route.ts
-// SUBSTITUI o arquivo inteiro — agora só existe POST (sem PATCH).
-//
-// POST /api/auth/cadastro
-// Body: { nome, email, senha, celular, cpfCnpj, cep, endereco, formaPagamento, plano }
-// Cria o usuário JÁ com os dados de cobrança e a assinatura escolhida,
-// tudo numa única transação. A sessão só é criada depois de tudo dar
-// certo — assim nunca existe usuário sem assinatura no banco.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashSenha, criarSessao } from "@/lib/auth";
@@ -44,22 +37,15 @@ export async function POST(req: NextRequest) {
       data: { nome, email, celular, senhaHash, cpfCnpj, cep, endereco, formaPagamento },
     });
 
-    // OBS: Assinatura ainda não tem usuarioId no banco (ver comentários em
-    // /api/assinatura/route.ts) — por enquanto é uma linha única global.
-    // Quando a coluna existir, troque o create abaixo por
-    // tx.assinatura.create({ data: { usuarioId: novoUsuario.id, ... } })
-    // e remova o findFirst/update (não precisa mais, cada usuário terá a sua).
-    const assinaturaExistente = await tx.assinatura.findFirst();
-    if (assinaturaExistente) {
-      await tx.assinatura.update({
-        where: { id: assinaturaExistente.id },
-        data: { plano, valor: infoPlano.valor, status: "ativa", proximaCobranca: calcularProximaCobranca(plano) },
-      });
-    } else {
-      await tx.assinatura.create({
-        data: { plano, valor: infoPlano.valor, proximaCobranca: calcularProximaCobranca(plano) },
-      });
-    }
+    // Agora Assinatura tem usuarioId — cada usuário tem a sua própria linha.
+    await tx.assinatura.create({
+      data: {
+        usuarioId: novoUsuario.id,
+        plano,
+        valor: infoPlano.valor,
+        proximaCobranca: calcularProximaCobranca(plano),
+      },
+    });
 
     return novoUsuario;
   });

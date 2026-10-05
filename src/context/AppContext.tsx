@@ -2,11 +2,6 @@
 
 // ============================================================================
 // APP CONTEXT — fonte única de estado no cliente.
-// ----------------------------------------------------------------------------
-// Toda página/componente que precisa de produtos, notas fiscais,
-// notificações, dados da empresa ou do usuário logado usa o hook
-// `useApp()` em vez de buscar isso sozinho. Por baixo dos panos, este
-// provider conversa com as rotas em src/app/api/*.
 // ============================================================================
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Produto, NotaFiscal, Notificacao, Movimentacao, Empresa, Usuario, NovaNotaPayload, ContaFixa, Assinatura, PlanoAssinatura } from "@/lib/types";
@@ -27,6 +22,10 @@ interface AppContextValue {
 
   recarregarTudo: () => Promise<void>;
   definirUsuario: (u: Usuario | null) => void;
+  // Limpa TODO o estado em memória (produtos, empresa, notas, etc.) — use
+  // no logout, pra não deixar dados do usuário anterior visíveis até a
+  // próxima busca.
+  limparEstado: () => void;
 
   criarProduto: (dados: Partial<Produto>) => Promise<void>;
   editarProduto: (id: string, dados: Partial<Produto>) => Promise<void>;
@@ -97,6 +96,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { recarregarTudo(); }, [recarregarTudo]);
 
+  const limparEstado = useCallback(() => {
+    setUsuario(null);
+    setEmpresa(null);
+    setProdutos([]);
+    setNotas([]);
+    setMovimentacoes([]);
+    setNotificacoes([]);
+    setContasFixas([]);
+    setAssinatura(null);
+  }, []);
+
   const criarProduto: AppContextValue["criarProduto"] = async (dados) => {
     const novo = await fetchJson<Produto>("/api/produtos", { method: "POST", body: JSON.stringify(dados) });
     setProdutos((ps) => [...ps, novo]);
@@ -116,8 +126,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const nota = await fetchJson<NotaFiscal>("/api/notas", { method: "POST", body: JSON.stringify(payload) });
       setNotas((ns) => [nota, ...ns]);
-      // baixa otimista do estoque local (só quando a nota foi autorizada —
-      // a origem da verdade já foi atualizada no servidor)
       if (nota.statusFiscal === "autorizada") {
         setProdutos((ps) => ps.map((p) => {
           const item = payload.itens.find((i) => i.produtoId === p.id);
@@ -216,7 +224,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       carregando, usuario, empresa, produtos, notas, movimentacoes, notificacoes, contasFixas, assinatura, alertasVencimento, naoLidas,
-      recarregarTudo, definirUsuario: setUsuario,
+      recarregarTudo, definirUsuario: setUsuario, limparEstado,
       criarProduto, editarProduto, excluirProduto,
       emitirNota, registrarMovimentacao,
       marcarNotificacaoLida, marcarTodasLidas,

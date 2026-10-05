@@ -1,25 +1,55 @@
+// Destino: src/app/api/assinatura/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { obterUsuarioIdDaSessao } from "@/lib/auth";
+import { PLANOS_ASSINATURA } from "@/lib/constants";
 
-// PATCH /api/auth/cadastro
-// Body: { cpfCnpj, cep, endereco, formaPagamento }
-// Atualiza os dados de cobrança do usuário logado (Etapa 2 — Checkout).
-// Aqui é só onde o Asaas (ou outro gateway) entraria: depois de confirmar
-// o pagamento/assinatura, você chama esse PATCH para salvar os dados.
+function calcularProximaCobranca(plano: string): Date {
+  const d = new Date();
+  if (plano === "anual") d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
+export async function GET() {
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
+  const assinatura = await prisma.assinatura.findUnique({ where: { usuarioId } });
+  if (!assinatura) return NextResponse.json({ erro: "Assinatura não encontrada." }, { status: 404 });
+  return NextResponse.json(assinatura);
+}
+
 export async function PATCH(req: NextRequest) {
   const usuarioId = await obterUsuarioIdDaSessao();
   if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
-  const { cpfCnpj, cep, endereco, formaPagamento } = await req.json();
-  if (!cpfCnpj?.trim() || !cep?.trim() || !endereco?.trim()) {
-    return NextResponse.json({ erro: "Preencha CPF/CNPJ, CEP e endereço." }, { status: 400 });
+  const { acao, plano } = await req.json();
+  const assinatura = await prisma.assinatura.findUnique({ where: { usuarioId } });
+  if (!assinatura) return NextResponse.json({ erro: "Assinatura não encontrada." }, { status: 404 });
+
+  if (acao === "cancelar") {
+    const atualizada = await prisma.assinatura.update({ where: { id: assinatura.id }, data: { status: "cancelada" } });
+    return NextResponse.json(atualizada);
   }
 
-  const usuario = await prisma.usuario.update({
-    where: { id: usuarioId },
-    data: { cpfCnpj, cep, endereco, formaPagamento },
-  });
+  if (acao === "reativar") {
+    const atualizada = await prisma.assinatura.update({
+      where: { id: assinatura.id },
+      data: { status: "ativa", proximaCobranca: calcularProximaCobranca(assinatura.plano) },
+    });
+    return NextResponse.json(atualizada);
+  }
 
-  return NextResponse.json({ id: usuario.id });
+  if (acao === "trocar-plano") {
+    const infoPlano = PLANOS_ASSINATURA.find((p) => p.v === plano);
+    if (!infoPlano) return NextResponse.json({ erro: "Plano inválido." }, { status: 400 });
+    const atualizada = await prisma.assinatura.update({
+      where: { id: assinatura.id },
+      data: { plano, valor: infoPlano.valor, status: "ativa", proximaCobranca: calcularProximaCobranca(plano) },
+    });
+    return NextResponse.json(atualizada);
+  }
+
+  return NextResponse.json({ erro: "Ação inválida." }, { status: 400 });
 }

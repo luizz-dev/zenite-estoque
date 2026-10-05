@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image"; // Opcional se for usar a otimização do Next.js
 import {
   LayoutDashboard, Boxes, History, HelpCircle, User, ChevronDown, Bell, ShieldCheck, Wallet,
 } from "lucide-react";
@@ -18,11 +17,10 @@ function Logo() {
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         overflow: "hidden"
       }}>
-        {/* Usando a tag HTML <img> padrão */}
-        <img 
-          src={"/img-icon/logo_principal_branco_zenite.png"} 
-          alt="Logo Zênite" 
-          style={{ width: "200%", height: "100%", objectFit: "contain", }} 
+        <img
+          src={"/img-icon/logo_principal_branco_zenite.png"}
+          alt="Logo Zênite"
+          style={{ width: "200%", height: "100%", objectFit: "contain", }}
         />
       </div>
       <div>
@@ -65,13 +63,16 @@ function NavItem({ href, label, icon, active, badge }: { href: string; label: st
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { naoLidas, definirUsuario } = useApp();
+  const { naoLidas, limparEstado } = useApp();
   const estoqueAtivo = pathname.startsWith("/estoque");
   const [estoqueAberto, setEstoqueAberto] = useState(estoqueAtivo);
 
+  // Limpa TODO o estado do Context (não só o usuário) — sem isso, produtos,
+  // notas e outros dados do usuário anterior ficavam visíveis até alguém
+  // logar e disparar uma busca nova.
   const sair = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    definirUsuario(null);
+    limparEstado();
     router.push("/login");
     router.refresh();
   };
