@@ -1,17 +1,20 @@
+// Destino: src/app/api/movimentacoes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { obterUsuarioIdDaSessao } from "@/lib/auth";
 
-// GET /api/movimentacoes — histórico de ajustes manuais de estoque (sem nota)
 export async function GET() {
-  const movs = await prisma.movimentacao.findMany({ orderBy: { data: "desc" } });
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
+  const movs = await prisma.movimentacao.findMany({ where: { usuarioId }, orderBy: { data: "desc" } });
   return NextResponse.json(movs);
 }
 
-// POST /api/movimentacoes
-// Body: { produtoId, nome, tipo: "entrada"|"saida", quantidade, motivo, observacao? }
-// Usado pelo botão "Movimentar Estoque" — dar baixa (perda, uso interno,
-// doação...) ou repor estoque (fornecedor, devolução...) SEM gerar NF-e.
 export async function POST(req: NextRequest) {
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
   const { produtoId, tipo, quantidade, motivo, observacao } = await req.json();
 
   if (!produtoId || !tipo || !quantidade || quantidade <= 0) {
@@ -23,7 +26,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
-      const produto = await tx.produto.findUnique({ where: { id: produtoId } });
+      // findFirst com usuarioId — não dá mais pra mexer no produto de outro usuário.
+      const produto = await tx.produto.findFirst({ where: { id: produtoId, usuarioId } });
       if (!produto) throw new Error("Produto não encontrado.");
       if (tipo === "saida" && produto.quantidade < quantidade) {
         throw new Error(`Estoque insuficiente. Disponível: ${produto.quantidade} un.`);
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
       });
 
       return tx.movimentacao.create({
-        data: { tipo, item: produto.nome, quantidade, motivo, observacao, data: new Date() },
+        data: { usuarioId, tipo, item: produto.nome, quantidade, motivo, observacao, data: new Date() },
       });
     });
 

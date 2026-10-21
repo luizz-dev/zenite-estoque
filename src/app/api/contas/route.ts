@@ -1,23 +1,28 @@
+// Destino: src/app/api/contas/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { obterUsuarioIdDaSessao } from "@/lib/auth";
 
-// GET /api/contas — lista as contas/despesas fixas cadastradas
 export async function GET() {
-  const contas = await prisma.contaFixa.findMany({ orderBy: { diaVencimento: "asc" } });
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+
+  const contas = await prisma.contaFixa.findMany({ where: { usuarioId }, orderBy: { diaVencimento: "asc" } });
   return NextResponse.json(contas);
 }
 
-// POST /api/contas — cadastra uma nova conta/despesa
-// Body: { nome, valor, categoria, diaVencimento, tipo: "fixa" | "eventual", avisoAntecedenciaDias }
 export async function POST(req: NextRequest) {
-  const dados = await req.json();
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
+  const dados = await req.json();
   if (!dados.nome?.trim() || !dados.valor) {
     return NextResponse.json({ erro: "Nome e valor são obrigatórios." }, { status: 400 });
   }
 
   const conta = await prisma.contaFixa.create({
     data: {
+      usuarioId,
       nome: dados.nome,
       valor: Number(dados.valor) || 0,
       categoria: dados.categoria || "Outros",

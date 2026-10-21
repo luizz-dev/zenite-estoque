@@ -1,23 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ROTAS_PUBLICAS = ["/login", "/cadastro"];
+function isRotaPublica(pathname: string) {
+  return pathname === "/login" || pathname === "/cadastro" || pathname.startsWith("/cadastro/");
+}
 
-// Roda antes de qualquer página. Não usa Prisma aqui (middleware roda no
-// Edge Runtime) — só olha se o cookie de sessão existe ou não.
-// A validação "de verdade" do usuário continua acontecendo no
-// src/app/(app)/layout.tsx (que aí sim consulta o banco).
 export function middleware(req: NextRequest) {
   const temSessao = req.cookies.has("zenite_session");
   const { pathname } = req.nextUrl;
-  const isRotaPublica = ROTAS_PUBLICAS.includes(pathname);
+  const publica = isRotaPublica(pathname);
 
-  if (!temSessao && !isRotaPublica && pathname !== "/") {
+  if (!temSessao && !publica && pathname !== "/") {
     return NextResponse.redirect(new URL("/login", req.url));
   }
-  if (temSessao && isRotaPublica) {
+  if (temSessao && publica) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
-  return NextResponse.next();
+
+  // Repassa o caminho atual via header — usado pelo (app)/layout.tsx pra
+  // saber, no servidor, se a rota é a própria "/assinatura" (que precisa
+  // ficar acessível mesmo sem assinatura ativa, pra dar pra reativar).
+  const res = NextResponse.next();
+  res.headers.set("x-pathname", pathname);
+  return res;
 }
 
 export const config = {
