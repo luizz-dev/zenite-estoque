@@ -133,37 +133,44 @@ export default function AssinaturaEtapa2Page() {
 
     sessionStorage.removeItem("zenite_cadastro_etapa1");
     setEtapa("sucesso");
-    setTimeout(() => router.push("/login"), ATRASO_REDIRECIONAMENTO_MS);
+    setTimeout(() => router.push("/dashboard"), ATRASO_REDIRECIONAMENTO_MS);
   };
 
-  const finalizar = () => {
-    if (!validarDados()) return;
-    if (formaPagamento === "cartao" && !cartao) return setModal("cartao");
-    if (formaPagamento === "pix" && !pixConfirmado) return setModal("pix");
-    processar();
-  };
+    const finalizar = () => {
+      if (!validarDados()) return;
+      if ((formaPagamento === "cartao" && !cartao) || (formaPagamento === "pix" && !pixConfirmado)) {
+      setErro("Confirme o pagamento: clique em Cartão de Crédito ou Pix e preencha os dados.");
+      return;
+      }
+      processar();
+    };
 
-  const aoConfirmarCartao = (dados: DadosCartao) => {
-    setCartao(dados);
-    setModal(null);
-    if (validarDados()) processar();
-  };
+    const aoConfirmarCartao = (dados: DadosCartao) => {
+      setCartao(dados);
+      setModal(null);
+      setErro("");
+    };
 
-  const aoConfirmarPix = () => {
-    setPixConfirmado(true);
-    setModal(null);
-    if (validarDados()) processar();
-  };
+    const aoConfirmarPix = () => {
+      setPixConfirmado(true);
+      setModal(null);
+      setErro("");
+    };
+
 
   // Dica de acessibilidade: deixa claro que é preciso clicar pra preencher
-  const dicaPagamento = !formaPagamento
-    ? "Selecione uma opção — uma janela abrirá para você preencher os dados."
-    : formaPagamento === "cartao" && !cartao
-    ? "Dados do cartão pendentes — clique em Cartão de Crédito para preencher."
-    : formaPagamento === "pix" && !pixConfirmado
-    ? "Pix pendente — clique em Pix para gerar o código."
-    : "";
-
+    const pagamentoPronto = (formaPagamento === "cartao" && !!cartao) || (formaPagamento === "pix" && pixConfirmado);
+    
+    const dicaPagamento = !formaPagamento
+      ? "Selecione uma opção — uma janela abrirá para você preencher os dados."
+      : formaPagamento === "cartao" && !cartao
+      ? "Dados do cartão pendentes — clique em Cartão de Crédito para preencher."
+      : formaPagamento === "pix" && !pixConfirmado
+      ? "Pix pendente — clique em Pix para gerar o código."
+      : formaPagamento === "cartao" && cartao
+      ? `✓ Cartão confirmado (${cartao.bandeira.toUpperCase()} final ${cartao.numero.slice(-4)} · ${cartao.parcelas}x). Clique em Finalizar cadastro para criar sua conta.`
+      : "✓ Pix confirmado. Clique em Finalizar cadastro para criar sua conta.";
+      
   if (carregando) return null;
 
   return (
@@ -203,9 +210,22 @@ export default function AssinaturaEtapa2Page() {
                   <SeletorBotao ativo={formaPagamento === "cartao"} onClick={() => escolherPagamento("cartao")} icon={<CreditCard size={16} />} label="Cartão de Crédito" />
                   <SeletorBotao ativo={formaPagamento === "pix"} onClick={() => escolherPagamento("pix")} icon={<QrCode size={16} />} label="Pix" />
                 </div>
-                {dicaPagamento && (
-                  <p style={{ color: C.textMuted, fontSize: 11.5, margin: "6px 0 0" }}>{dicaPagamento}</p>
-                )}
+                  {dicaPagamento && (
+                    pagamentoPronto ? (
+                      <div
+                        role="status"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, marginTop: 8, padding: "9px 12px", borderRadius: 10,
+                          border: "1px solid rgba(52,211,153,0.5)", background: "rgba(52,211,153,0.12)",
+                          color: "#34D399", fontSize: 12.5, fontWeight: 600,
+                        }}
+                      >
+                        <Check size={16} style={{ flexShrink: 0 }} /> {dicaPagamento.replace("✓ ", "")}
+                      </div>
+                    ) : (
+                      <p style={{ color: C.textMuted, fontSize: 11.5, margin: "6px 0 0" }}>{dicaPagamento}</p>
+                    )
+                  )}
               </div>
 
               <div style={{ marginBottom: 16 }}>
@@ -282,8 +302,10 @@ function TelaStatus({ etapa }: { etapa: "aguardando" | "sucesso" }) {
               animation: "zenite-spin 0.9s linear infinite",
             }}
           />
-          <h3 style={{ color: C.white, fontSize: 18, fontWeight: 700, margin: 0 }}>Aguardando confirmação do pagamento</h3>
-          <p style={{ color: C.textMuted, fontSize: 12.5, margin: 0 }}>Não feche esta página. Isso leva apenas alguns segundos.</p>
+          <h3 style={{ color: C.white, fontSize: 18, fontWeight: 700, margin: 0 }}>Preparando a plataforma</h3>
+          <p style={{ color: C.textMuted, fontSize: 12.5, margin: 0 }}>
+            Estamos criando sua conta e configurando seu ambiente. Em instantes você será redirecionado para o dashboard.
+          </p>
         </>
       ) : (
         <>
@@ -296,7 +318,7 @@ function TelaStatus({ etapa }: { etapa: "aguardando" | "sucesso" }) {
             <Check size={30} color="#34D399" />
           </div>
           <h3 style={{ color: C.white, fontSize: 18, fontWeight: 700, margin: 0 }}>Conta criada com sucesso!</h3>
-          <p style={{ color: C.textMuted, fontSize: 12.5, margin: 0 }}>Redirecionando para o login...</p>
+          <p style={{ color: C.textMuted, fontSize: 12.5, margin: 0 }}>Redirecionando para o dashboard...</p>
         </>
       )}
     </div>

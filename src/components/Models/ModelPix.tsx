@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Copy, Check, Clock, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Check, Clock, RefreshCw, X } from "lucide-react";
 import { C } from "@/lib/constants";
 import { BtnPrimary } from "@/components/ui/Button";
 import { ModalShell } from "./ModelCredito";
 
 const DURACAO_SEGUNDOS = 15 * 60;
+const TEMPO_VERIFICACAO_MS = 5000; // quanto tempo o botão fica travado verificando
+const TEMPO_APROVADO_MS = 1400; // quanto o "confirmado" fica visível antes de fechar
+
+// Só para a demonstração: troque para "recusado" para mostrar o fluxo de pagamento recusado.
+const RESULTADO_DEMO: "aprovado" | "recusado" = "aprovado";
+
+type Fase = "aguardando" | "processando" | "aprovado" | "recusado";
+
 const brl = (n: number) => `R$ ${n.toFixed(2).replace(".", ",")}`;
 
 /* QR Code genérico (apenas visual, para demonstração) */
@@ -15,7 +23,6 @@ function QrDemo({ seed, tamanho = 190 }: { seed: string; tamanho?: number }) {
   const quiet = 2;
 
   const celulas = useMemo(() => {
-    // gerador pseudoaleatório determinístico a partir do seed
     let h = 1779033703;
     for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
     let s = h >>> 0;
@@ -68,18 +75,33 @@ export default function ModelPix({
   onClose: () => void;
   onConfirmar: () => void;
 }) {
+  const [fase, setFase] = useState<Fase>("aguardando");
   const [codigoId, setCodigoId] = useState(1);
   const [expiraEm, setExpiraEm] = useState(() => Date.now() + DURACAO_SEGUNDOS * 1000);
   const [agora, setAgora] = useState(() => Date.now());
   const [copiado, setCopiado] = useState(false);
+
+  const onConfirmarRef = useRef(onConfirmar);
+  onConfirmarRef.current = onConfirmar;
 
   useEffect(() => {
     const id = setInterval(() => setAgora(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // Verificando (5s) → resultado → se aprovado, fecha o popup e volta pro cadastro
+  useEffect(() => {
+    if (fase !== "processando" && fase !== "aprovado") return;
+    const t = setTimeout(
+      () => (fase === "processando" ? setFase(RESULTADO_DEMO) : onConfirmarRef.current()),
+      fase === "processando" ? TEMPO_VERIFICACAO_MS : TEMPO_APROVADO_MS
+    );
+    return () => clearTimeout(t);
+  }, [fase]);
+
+  const bloqueado = fase === "processando" || fase === "aprovado";
   const restante = Math.max(0, Math.ceil((expiraEm - agora) / 1000));
-  const expirou = restante === 0;
+  const expirou = restante === 0 && !bloqueado;
   const mm = String(Math.floor(restante / 60)).padStart(2, "0");
   const ss = String(restante % 60).padStart(2, "0");
 
@@ -100,12 +122,24 @@ export default function ModelPix({
     setCodigoId((n) => n + 1);
     setExpiraEm(Date.now() + DURACAO_SEGUNDOS * 1000);
     setAgora(Date.now());
+    setFase("aguardando");
   };
 
   const corTimer = expirou || restante <= 60 ? C.red : C.orange;
 
+  const botaoSecundario = {
+    flex: 1, padding: 12, borderRadius: 10, fontSize: 14, fontWeight: 600,
+    background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted,
+    cursor: bloqueado ? "not-allowed" : "pointer", opacity: bloqueado ? 0.5 : 1,
+  } as const;
+
   return (
-    <ModalShell titulo="Pagamento via Pix" onClose={onClose}>
+    <ModalShell titulo="Pagamento via Pix" onClose={bloqueado ? () => {} : onClose}>
+      <style>{`
+        @keyframes zenite-spin { to { transform: rotate(360deg); } }
+        @keyframes zenite-pop { 0% { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+      `}</style>
+
       <p style={{ color: C.textMuted, fontSize: 13, textAlign: "center", margin: "0 0 14px" }}>
         Abra o app do seu banco e escaneie o código para pagar.
       </p>
@@ -113,14 +147,55 @@ export default function ModelPix({
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
         <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, opacity: expirou ? 0.25 : 1 }}>
           <QrDemo seed={`zenite-pix-${codigoId}`} />
+
+          {/* Validação em cima do QR Code */}
+          {fase !== "aguardando" && (
+            <div
+              style={{
+                position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: 10, padding: 12, textAlign: "center", background: "rgba(11,18,32,0.92)",
+              }}
+            >
+              {fase === "processando" && (
+                <>
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", border: "4px solid rgba(245,124,0,0.2)", borderTopColor: C.orange, animation: "zenite-spin 0.9s linear infinite" }} />
+                  <span style={{ color: C.white, fontSize: 13, fontWeight: 600 }}>Verificando pagamento...</span>
+                </>
+              )}
+              {fase === "aprovado" && (
+                <>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(52,211,153,0.12)", border: "2px solid #34D399", animation: "zenite-pop 0.4s ease-out" }}>
+                    <Check size={26} color="#34D399" />
+                  </div>
+                  <span style={{ color: "#34D399", fontSize: 13, fontWeight: 700 }}>Pagamento confirmado!</span>
+                </>
+              )}
+              {fase === "recusado" && (
+                <>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(248,113,113,0.12)", border: `2px solid ${C.red}`, animation: "zenite-pop 0.4s ease-out" }}>
+                    <X size={26} color={C.red} />
+                  </div>
+                  <span style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>Pagamento não identificado</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ textAlign: "center", marginBottom: 14 }}>
         <div style={{ color: C.white, fontSize: 20, fontWeight: 700 }}>{brl(valor)}</div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: corTimer, fontSize: 13, fontWeight: 600, marginTop: 4 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, marginTop: 4, color: fase === "aprovado" ? "#34D399" : fase === "recusado" ? C.red : corTimer }}>
           <Clock size={14} />
-          {expirou ? "Código expirado" : `Expira em ${mm}:${ss}`}
+          {fase === "processando"
+            ? "Processando pagamento, aguarde..."
+            : fase === "aprovado"
+            ? "Pagamento confirmado"
+            : fase === "recusado"
+            ? "Pagamento recusado — tente novamente"
+            : expirou
+            ? "Código expirado"
+            : `Expira em ${mm}:${ss}`}
         </div>
       </div>
 
@@ -139,11 +214,12 @@ export default function ModelPix({
         <button
           type="button"
           onClick={copiar}
-          disabled={expirou}
+          disabled={expirou || bloqueado}
           style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: 8, cursor: expirou ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: 8,
+            cursor: expirou || bloqueado ? "not-allowed" : "pointer",
             border: `1px solid ${copiado ? "#34D399" : C.orange}`, background: "rgba(245,124,0,0.12)",
-            color: copiado ? "#34D399" : C.orange, fontSize: 13, fontWeight: 600, opacity: expirou ? 0.5 : 1,
+            color: copiado ? "#34D399" : C.orange, fontSize: 13, fontWeight: 600, opacity: expirou || bloqueado ? 0.5 : 1,
           }}
         >
           {copiado ? <Check size={15} /> : <Copy size={15} />}
@@ -159,19 +235,18 @@ export default function ModelPix({
         </BtnPrimary>
       ) : (
         <div style={{ display: "flex", gap: 10 }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              flex: 1, padding: 12, borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 600,
-              background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted,
-            }}
-          >
+          <button type="button" onClick={onClose} disabled={bloqueado} style={botaoSecundario}>
             Cancelar
           </button>
-          <BtnPrimary onClick={onConfirmar} style={{ flex: 1, padding: 12 }}>
-            Continuar
-          </BtnPrimary>
+          {fase === "recusado" ? (
+            <BtnPrimary onClick={() => setFase("aguardando")} style={{ flex: 1, padding: 12 }}>
+              Tentar novamente
+            </BtnPrimary>
+          ) : (
+            <BtnPrimary onClick={() => setFase("processando")} disabled={bloqueado} style={{ flex: 1, padding: 12 }}>
+              {fase === "processando" ? "Verificando..." : fase === "aprovado" ? "Confirmado ✓" : "Confirmar pagamento"}
+            </BtnPrimary>
+          )}
         </div>
       )}
       <p style={{ color: C.textMuted, fontSize: 11, textAlign: "center", margin: "12px 0 0" }}>

@@ -310,7 +310,7 @@ export default function ModelCredito({
           Cancelar
         </button>
         <BtnPrimary onClick={confirmar} style={{ flex: 1, padding: 12 }}>
-          Continuar
+          Confirmar
         </BtnPrimary>
       </div>
       <p style={{ color: C.textMuted, fontSize: 11, textAlign: "center", margin: "12px 0 0" }}>
