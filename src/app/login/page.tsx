@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, KeyRound, AlertTriangle } from "lucide-react";
@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [lembrar, setLembrar] = useState(true);
   const [erro, setErro] = useState("");
   const [entrando, setEntrando] = useState(false);
+
+  useEffect(() => {
+  if (new URLSearchParams(window.location.search).get("erro") === "google")
+    setErro("Não foi possível entrar com o Google. Tente novamente.");
+  }, []);
 
   const entrar = async () => {
     if (!email.trim() || !senha.trim()) return setErro("Preencha e-mail e senha para continuar.");
@@ -56,6 +61,14 @@ export default function LoginPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0" }}>
           <div style={{ flex: 1, height: 1, background: C.border }} /><span style={{ color: C.textMuted, fontSize: 11 }}>ou</span><div style={{ flex: 1, height: 1, background: C.border }} />
         </div>
+
+        <a href="/api/auth/google" style={{
+          display: "block", textAlign: "center", padding: 12, borderRadius: 10,
+          border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)",
+          color: C.white, fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 18,}}>
+            Entrar com Google
+          </a>
+
         <p style={{ textAlign: "center", color: "#A8B5D1", fontSize: 12.5, margin: 0 }}>
           Não possui conta? <Link href="/cadastro" style={{ color: C.cyanText, fontWeight: 600, textDecoration: "none" }}>Cadastro</Link>
         </p>
