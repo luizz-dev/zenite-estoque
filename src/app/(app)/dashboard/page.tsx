@@ -1,5 +1,6 @@
 "use client";
 
+// Destino: src/app/(app)/dashboard/page.tsx
 import { useMemo, useState, type ReactNode } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Coins, Boxes, FileText, AlertTriangle, ArrowUp, ArrowDown, ExternalLink, Wallet } from "lucide-react";
@@ -50,7 +51,6 @@ export default function DashboardPage() {
   const { produtos, notas, movimentacoes, contasFixas, naoLidas, carregando } = useApp();
   const [considerarContas, setConsiderarContas] = useState(true);
 
-
   const { lucroBruto, totalContas, lucroLiquido } = useMemo(
     () => calcularLucroMes(notas, produtos, contasFixas, considerarContas),
     [notas, produtos, contasFixas, considerarContas]
@@ -59,21 +59,51 @@ export default function DashboardPage() {
 
   const dadosTicket = useMemo(() => ticketPorFormaPagamento(notas), [notas]);
   const dadosTendencia = useMemo(() => tendenciaOperacional(notas, movimentacoes), [notas, movimentacoes]);
-  
+
+  // ---- Faturamento real, calculado a partir das notas do usuário logado ----
+  // (antes vinha fixo de MEI.faturamentoMes/faturamentoAnualAcumulado, que
+  // é o mesmo número pra qualquer conta — agora é por usuário, via "notas"
+  // do AppContext, que já vem filtrado pelo usuarioId no backend).
+  const faturamento = useMemo(() => {
+    const hoje = new Date();
+    const autorizadas = notas.filter((n) => n.statusFiscal === "autorizada");
+
+    const mesAnteriorData = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+
+    const doMes = (ref: Date) =>
+      autorizadas.filter((n) => {
+        const d = new Date(n.emitidaEm);
+        return d.getMonth() === ref.getMonth() && d.getFullYear() === ref.getFullYear();
+      });
+
+    const notasMesAtual = doMes(hoje);
+    const notasMesAnterior = doMes(mesAnteriorData);
+    const notasAnoAtual = autorizadas.filter((n) => new Date(n.emitidaEm).getFullYear() === hoje.getFullYear());
+
+    return {
+      mesAtual: notasMesAtual.reduce((a, n) => a + n.valorTotal, 0),
+      mesAnterior: notasMesAnterior.reduce((a, n) => a + n.valorTotal, 0),
+      anualAcumulado: notasAnoAtual.reduce((a, n) => a + n.valorTotal, 0),
+      qtdMesAtual: notasMesAtual.length,
+    };
+  }, [notas]);
+
   if (carregando) return <PageLoading titulo="Dashboard" />;
 
   const totalUnidadesEstoque = produtos.reduce((a, p) => a + p.quantidade, 0);
 
   const metrics: { label: string; val: string; delta: string; pos?: boolean; neutral?: boolean; icon: ReactNode; glow: string }[] = [
-    { label: "Faturamento do Mês", val: brl(MEI.faturamentoMes), delta: `+${pctVariacao(MEI.faturamentoMes, MEI.faturamentoMesAnterior)}% vs. mês anterior`, pos: true, icon: <Coins size={22} />, glow: "rgba(72,55,232,0.2)" },
+    { label: "Faturamento do Mês", val: brl(faturamento.mesAtual), delta: `${pctVariacao(faturamento.mesAtual, faturamento.mesAnterior) >= 0 ? "+" : ""}${pctVariacao(faturamento.mesAtual, faturamento.mesAnterior)}% vs. mês anterior`, pos: faturamento.mesAtual >= faturamento.mesAnterior, icon: <Coins size={22} />, glow: "rgba(72,55,232,0.2)" },
     { label: "Total em Estoque", val: `${totalUnidadesEstoque} un.`, delta: `${produtos.length} produto${produtos.length !== 1 ? "s" : ""} cadastrado${produtos.length !== 1 ? "s" : ""}`, neutral: true, icon: <Boxes size={22} />, glow: "rgba(0,180,216,0.2)" },
-    { label: "Notas Fiscais Emitidas", val: `${229 + notas.length}`, delta: "+12,8% este mês", pos: true, icon: <FileText size={22} />, glow: "rgba(87,57,196,0.2)" },
+    { label: "Notas Fiscais Emitidas", val: `${notas.length}`, delta: `${faturamento.qtdMesAtual} este mês`, pos: true, icon: <FileText size={22} />, glow: "rgba(87,57,196,0.2)" },
     { label: "Alertas Ativos", val: `${naoLidas}`, delta: naoLidas > 0 ? `${naoLidas} pendente${naoLidas > 1 ? "s" : ""}` : "Tudo em dia", pos: naoLidas === 0, icon: <AlertTriangle size={22} />, glow: "rgba(245,124,0,0.2)" },
   ];
 
-  const pctLimite = Math.round((MEI.faturamentoAnualAcumulado / MEI.limiteAnualMEI) * 100);
+  // MEI.limiteAnualMEI continua fixo de propósito — é o teto legal de
+  // faturamento do MEI (R$ 81.000/ano), não um dado da empresa do usuário.
+  const pctLimite = Math.round((faturamento.anualAcumulado / MEI.limiteAnualMEI) * 100);
   const toneLimite = pctLimite >= 85 ? "red" : pctLimite >= 60 ? "amber" : "purple";
-  const restante = MEI.limiteAnualMEI - MEI.faturamentoAnualAcumulado;
+  const restante = MEI.limiteAnualMEI - faturamento.anualAcumulado;
   const baixoEstoque = produtosComEstoqueBaixo(produtos);
 
   return (
@@ -107,7 +137,7 @@ export default function DashboardPage() {
           </div>
           <div style={{ marginTop: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <span style={{ color: C.white, fontSize: 18, fontWeight: 700 }}>{brl(MEI.faturamentoAnualAcumulado)}</span>
+              <span style={{ color: C.white, fontSize: 18, fontWeight: 700 }}>{brl(faturamento.anualAcumulado)}</span>
               <span style={{ color: C.textMuted, fontSize: 16 }}>de {brl(MEI.limiteAnualMEI)}</span>
             </div>
             <ProgressBar pct={pctLimite} tone={toneLimite as "purple" | "amber" | "red"} />
