@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url = env("DATABASE_URL")
 }
 
 model Usuario {
@@ -32,6 +32,8 @@ model Usuario {
   contasFixas   ContaFixa[]
   movimentacoes Movimentacao[]
   notificacoes  Notificacao[]
+
+  tokensRedefinicao TokenRedefinicao[]
 
   @@map("usuarios")
 }
@@ -193,4 +195,15 @@ model Notificacao {
 
   @@index([usuarioId])
   @@map("notificacoes")
+}
+
+model TokenRedefinicao {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiraEm  DateTime
+  criadoEm  DateTime @default(now())
+
+  @@map("tokens_redefinicao")
 }
