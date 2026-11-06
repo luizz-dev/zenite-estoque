@@ -21,7 +21,7 @@ function Logo() {
       }}>
         {/* Usando a tag HTML <img> padrão */}
         <img 
-          src={logoImg.src} 
+          src={logoImg} 
           alt="Logo Zênite" 
           style={{ width: "200%", height: "100%", objectFit: "contain", }} 
         />

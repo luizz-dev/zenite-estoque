@@ -1,8 +1,62 @@
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { proximoNumeroNota, simularStatusFiscal } from "@/lib/utils";
-import { brl } from "@/lib/utils";
+import { proximoNumeroNota, brl } from "@/lib/utils";
 import type { NovaNotaPayload } from "@/lib/types";
+
+const execFileAsync = promisify(execFile);
+
+function getCodigoMunicipio(uf: string, cidade?: string): number {
+  const normalizado = (cidade ?? "").toLowerCase();
+
+  if (uf === "SP" && /s[aã]o paulo|sao paulo/.test(normalizado)) return 3550308;
+  if (uf === "RJ" && /rio de janeiro|rio/.test(normalizado)) return 3304557;
+  if (uf === "MG" && /belo horizonte|belo/.test(normalizado)) return 3106200;
+  if (uf === "PR" && /curitiba|curit/.test(normalizado)) return 4106902;
+  return 3550308;
+}
+
+async function emitirNFeViaPhp(payload: {
+  numero: number;
+  serie: number;
+  emitente: Record<string, any>;
+  cliente: Record<string, any>;
+  itens: Array<{ cProd: string; xProd: string; NCM: string; CFOP: string; uCom: string; qCom: number; vUnCom: number }>;
+}) {
+  const scriptPath = path.join(process.cwd(), "emitir_nfe.php");
+
+  try {
+    const { stdout } = await execFileAsync("php", [scriptPath, JSON.stringify(payload)], {
+      timeout: 120000,
+      env: process.env,
+    });
+
+    const raw = stdout.toString().trim();
+    const trechoJson = raw.split(/\r?\n/).find((linha) => linha.trim().startsWith("{")) ?? raw;
+    const resultado = JSON.parse(trechoJson);
+
+    return {
+      sucesso: Boolean(resultado?.sucesso),
+      status: resultado?.status ?? "erro",
+      mensagem: resultado?.mensagem ?? "Erro ao emitir a NF-e.",
+      motivoRejeicao: resultado?.motivoRejeicao ?? resultado?.mensagem ?? null,
+      protocoloNFe: resultado?.protocoloNFe ?? null,
+      detalhes: resultado?.detalhes ?? null,
+    };
+  } catch (erro: any) {
+    const mensagem = erro?.stderr?.toString?.() || erro?.message || "Falha ao se comunicar com o serviço de NFe.";
+    return {
+      sucesso: false,
+      status: "erro",
+      mensagem: mensagem.replace(/\s+/g, " ").trim() || "Falha ao se comunicar com o serviço de NFe.",
+      motivoRejeicao: mensagem.replace(/\s+/g, " ").trim() || "Falha ao se comunicar com o serviço de NFe.",
+      protocoloNFe: null,
+      detalhes: null,
+    };
+  }
+}
 
 // GET /api/notas — lista as notas fiscais já emitidas, com os itens de cada uma
 // (é o que alimenta o Histórico — cada nota vira 1 card expansível).
@@ -14,12 +68,7 @@ export async function GET() {
   return NextResponse.json(notas);
 }
 
-// POST /api/notas — emite uma NF-e com 1 ou vários produtos (de categorias
-// diferentes, sem problema). Tudo roda em uma transação: se alguma etapa
-// falhar (ex.: estoque insuficiente), nada é salvo.
-//
-// Body esperado (NovaNotaPayload, ver src/lib/types.ts):
-//   { destinatario, endereco, csosn, formaPagamento, itens: [...] }
+// POST /api/notas — emite uma NF-e com 1 ou vários produtos.
 export async function POST(req: NextRequest) {
   const payload: NovaNotaPayload = await req.json();
 
@@ -35,8 +84,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
-      // 1) valida estoque de cada item e calcula o total
       let total = 0;
+      const itensProcessados: Array<{ produtoId: string; nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }> = [];
+
       for (const item of payload.itens) {
         const produto = await tx.produto.findUnique({ where: { id: item.produtoId } });
         if (!produto) throw new Error(`Produto ${item.nome} não encontrado.`);
@@ -44,16 +94,67 @@ export async function POST(req: NextRequest) {
           throw new Error(`Estoque insuficiente para ${item.nome} (disponível: ${produto.quantidade}).`);
         }
         total += item.quantidade * item.valorUnitario;
+        itensProcessados.push({ ...item, cfop: item.cfop || "5102" });
       }
 
-      // 2) gera o próximo número de nota
-      const ultimasNotas = await tx.notaFiscal.findMany({ select: { numero: true } });
-      const numero = proximoNumeroNota(ultimasNotas.map((n) => n.numero));
+      const empresa = await tx.empresa.findFirst();
+      if (!empresa || !empresa.configurada || !empresa.razaoSocial || !empresa.cnpj || !empresa.ie) {
+        throw new Error("Empresa não configurada. Preencha os dados fiscais antes de emitir a NF-e.");
+      }
 
-      // 2.1) simula o retorno da SEFAZ (protótipo — não é integração real)
-      const simulacao = simularStatusFiscal();
+      const numero = proximoNumeroNota((await tx.notaFiscal.findMany({ select: { numero: true } })).map((n) => n.numero));
+      const emitente = {
+        CNPJ: empresa.cnpj.replace(/\D/g, ""),
+        xNome: empresa.razaoSocial,
+        IE: empresa.ie.replace(/\D/g, "") || "ISENTO",
+        CRT: "1",
+        endereco: {
+          xLgr: empresa.rua || "Rua",
+          nro: empresa.numero || "S/N",
+          xBairro: empresa.bairro || "Centro",
+          cMun: getCodigoMunicipio(empresa.uf || "SP", empresa.cidade || "São Paulo"),
+          xMun: empresa.cidade || "São Paulo",
+          UF: empresa.uf || "SP",
+          CEP: (empresa.cep || "01000000").replace(/\D/g, ""),
+        },
+      };
 
-      // 3) cria a nota + os itens (1 para N)
+      const cliente = {
+        CNPJ: payload.destinatario.tipo === "PJ" ? payload.destinatario.doc.replace(/\D/g, "") : undefined,
+        CPF: payload.destinatario.tipo === "PF" ? payload.destinatario.doc.replace(/\D/g, "") : undefined,
+        xNome: payload.destinatario.nome,
+        endereco: {
+          xLgr: payload.endereco?.logradouro || "Rua",
+          nro: payload.endereco?.numero || "S/N",
+          xBairro: payload.endereco?.bairro || "Centro",
+          cMun: getCodigoMunicipio(payload.destinatario.uf || "SP", payload.endereco?.cidade || "São Paulo"),
+          xMun: payload.endereco?.cidade || "São Paulo",
+          UF: payload.endereco?.uf || payload.destinatario.uf || "SP",
+          CEP: (payload.endereco?.cep || "01000000").replace(/\D/g, ""),
+        },
+      };
+
+      const itensNfe = itensProcessados.map((item) => ({
+        cProd: String(item.produtoId).slice(0, 20),
+        xProd: item.nome,
+        NCM: String(item.ncm || "6109.10"),
+        CFOP: String(item.cfop || "5102"),
+        uCom: "UN",
+        qCom: Number(item.quantidade),
+        vUnCom: Number(item.valorUnitario),
+      }));
+
+      const resultadoNfe = await emitirNFeViaPhp({
+        numero,
+        serie: 900,
+        emitente,
+        cliente,
+        itens: itensNfe,
+      });
+
+      const statusFiscal = resultadoNfe.sucesso ? "autorizada" : "rejeitada";
+      const motivoRejeicao = resultadoNfe.sucesso ? null : (resultadoNfe.motivoRejeicao || resultadoNfe.mensagem || "NF-e rejeitada pela SEFAZ.");
+
       const nota = await tx.notaFiscal.create({
         data: {
           numero,
@@ -62,14 +163,14 @@ export async function POST(req: NextRequest) {
           destinatarioNome: payload.destinatario.nome,
           destinatarioIe: payload.destinatario.ie || null,
           destinatarioUf: payload.destinatario.uf,
-          enderecoEntrega: payload.endereco ?? undefined,
+          enderecoEntrega: payload.endereco ? JSON.parse(JSON.stringify(payload.endereco)) : undefined,
           csosn: payload.csosn,
           formaPagamento: payload.formaPagamento,
           valorTotal: total,
-          statusFiscal: simulacao.statusFiscal,
-          motivoRejeicao: simulacao.motivoRejeicao ?? null,
+          statusFiscal,
+          motivoRejeicao,
           itens: {
-            create: payload.itens.map((item) => ({
+            create: itensProcessados.map((item) => ({
               produtoId: item.produtoId,
               nome: item.nome,
               sku: item.sku,
@@ -83,10 +184,8 @@ export async function POST(req: NextRequest) {
         include: { itens: true },
       });
 
-      // 4) baixa o estoque de cada produto envolvido — só quando a nota foi
-      // autorizada (se a SEFAZ rejeitou, a venda não se concretizou).
-      if (simulacao.statusFiscal === "autorizada") {
-        for (const item of payload.itens) {
+      if (statusFiscal === "autorizada") {
+        for (const item of itensProcessados) {
           await tx.produto.update({
             where: { id: item.produtoId },
             data: { quantidade: { decrement: item.quantidade } },
@@ -94,13 +193,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 5) cria a notificação — de sucesso ou de rejeição
-      if (simulacao.statusFiscal === "autorizada") {
+      if (statusFiscal === "autorizada") {
         await tx.notificacao.create({
           data: {
             tipo: "fiscal",
             titulo: `NF-e #${String(numero).padStart(5, "0")} emitida com sucesso`,
-            descricao: `Nota fiscal com ${payload.itens.length} item(ns) e total de ${brl(total)} autorizada pela SEFAZ.`,
+            descricao: `Nota fiscal com ${itensProcessados.length} item(ns) e total de ${brl(total)} autorizada pela SEFAZ.`,
             prioridade: "baixa",
           },
         });
@@ -109,7 +207,7 @@ export async function POST(req: NextRequest) {
           data: {
             tipo: "fiscal",
             titulo: `NF-e #${String(numero).padStart(5, "0")} rejeitada pela SEFAZ`,
-            descricao: simulacao.motivoRejeicao || "A nota foi rejeitada. Corrija os dados e emita novamente.",
+            descricao: motivoRejeicao || "A nota foi rejeitada. Corrija os dados e emita novamente.",
             prioridade: "alta",
           },
         });
