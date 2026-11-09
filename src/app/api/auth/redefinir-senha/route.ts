@@ -30,5 +30,5 @@ export async function POST(req: NextRequest) {
     prisma.tokenRedefinicao.deleteMany({ where: { usuarioId: registro.usuarioId } }),
   ]);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }); //direciona para o login com a mensagem de sucesso
 }

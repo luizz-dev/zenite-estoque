@@ -12,14 +12,15 @@ export async function enviarEmailRedefinicao(para: string, link: string, contaGo
     </div>`;
 
   if (!process.env.RESEND_API_KEY) {
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production") { 
       console.log("[DEV] Sem RESEND_API_KEY, e-mail não enviado. Link:", link);
     } else {
       console.error("RESEND_API_KEY não configurada: e-mail de redefinição não enviado.");
     }
     return;
   }
-
+  
+//email enviado para o usuário com o link
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
