@@ -17,10 +17,14 @@ export default function LoginPage() {
   const [lembrar, setLembrar] = useState(true);
   const [erro, setErro] = useState("");
   const [entrando, setEntrando] = useState(false);
+  const [info, setInfo] = useState("");
 
   useEffect(() => {
-  if (new URLSearchParams(window.location.search).get("erro") === "google")
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("erro") === "google")
     setErro("Não foi possível entrar com o Google. Tente novamente.");
+  if (params.get("senha") === "redefinida")
+    setInfo("Senha atualizada! Entre com a nova senha.");
   }, []);
 
   const entrar = async () => {
@@ -50,8 +54,15 @@ export default function LoginPage() {
             <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} style={{ accentColor: C.purple1 }} />
             Lembrar-me
           </label>
-          <span style={{ color: C.cyanText, cursor: "pointer" }}>Esqueci minha senha</span>
+          <Link href="/esqueci-senha" style={{ color: C.cyanText, textDecoration: "none" }}>Esqueci minha senha</Link>
         </div>
+
+        {info && (
+       <div style={{ borderRadius: 10, border: "1px solid rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.08)", padding: "9px 12px", marginBottom: 16, color: "#34D399", fontSize: 12 }}>
+       {info}
+        </div>
+        )}
+
         {erro && (
           <div style={{ borderRadius: 10, border: "1px solid rgba(248,113,113,0.3)", background: "rgba(248,113,113,0.08)", padding: "9px 12px", marginBottom: 16, color: C.red, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <AlertTriangle size={14} /> {erro}

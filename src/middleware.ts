@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 function isRotaPublica(pathname: string) {
-  return pathname === "/login" || pathname === "/cadastro" || pathname.startsWith("/cadastro/");
+  return (
+    pathname === "/login" ||
+    pathname === "/cadastro" ||
+    pathname.startsWith("/cadastro/") ||
+    pathname === "/esqueci-senha" ||
+    pathname === "/redefinir-senha"
+  );
 }
 
 export function middleware(req: NextRequest) {
