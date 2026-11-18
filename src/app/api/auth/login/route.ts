@@ -6,15 +6,25 @@ import { verificarSenha, criarSessao } from "@/lib/auth";
 // Body: { email, senha }
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json();
+
   if (!email?.trim() || !senha?.trim()) {
     return NextResponse.json({ erro: "Informe e-mail e senha." }, { status: 400 });
   }
 
-  const usuario = await prisma.usuario.findUnique({ where: { email } });
-  if (!usuario || !usuario.senhaHash || !(await verificarSenha(senha, usuario.senhaHash))) {
-    return NextResponse.json({ erro: "E-mail ou senha incorretos." }, { status: 401 });
-  }
+  try {
+    const usuario = await prisma.usuario.findUnique({ where: { email } });
 
-  await criarSessao(usuario.id);
-  return NextResponse.json({ id: usuario.id, nome: usuario.nome, email: usuario.email });
+    if (!usuario || !usuario.senhaHash || !(await verificarSenha(senha, usuario.senhaHash))) {
+      return NextResponse.json({ erro: "E-mail ou senha incorretos." }, { status: 401 });
+    }
+
+    await criarSessao(usuario.id);
+    return NextResponse.json({ id: usuario.id, nome: usuario.nome, email: usuario.email });
+  } catch (erro) {
+    console.error("Erro no login:", erro);
+    return NextResponse.json(
+      { erro: "Banco de dados indisponível. Confira DATABASE_URL e reinicie o servidor." },
+      { status: 503 }
+    );
+  }
 }
