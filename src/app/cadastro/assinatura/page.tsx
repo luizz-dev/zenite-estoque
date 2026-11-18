@@ -13,12 +13,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { IdCard, MapPin, Home, Hash, Building2, AlertTriangle, CreditCard, QrCode, Check } from "lucide-react";
-import { C, PLANOS_ASSINATURA, UFS } from "@/lib/constants";
+import { C, PLANOS_ASSINATURA } from "@/lib/constants";
 import { AuthBackground, AuthSplitCard, AuthField, OnboardingStepper } from "@/components/auth/AuthLayout";
 import { BtnPrimary } from "@/components/ui/Button";
 import ModelCredito, { type DadosCartao } from "@/components/Models/ModelCredito";
 import ModelPix from "@/components/Models/ModelPix";
 import { useApp } from "@/context/AppContext";
+
 
 type FormaPagamento = "cartao" | "pix";
 type PlanoValor = (typeof PLANOS_ASSINATURA)[number]["v"];
@@ -39,7 +40,6 @@ export default function AssinaturaEtapa2Page() {
   const [endereco, setEndereco] = useState("");
   const [numero, setNumero] = useState("");
   const [complemento, setComplemento] = useState("");
-  const [estado, setEstado] = useState("");
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | null>(null);
   const [plano, setPlano] = useState<PlanoValor>("mensal");
@@ -65,9 +65,8 @@ export default function AssinaturaEtapa2Page() {
     setCarregando(false);
   }, [router]);
 
-  // Autocomplete de endereço via ViaCEP (API pública/gratuita, sem chave).
-  // Dispara sozinho quando o CEP tiver 8 dígitos. O estado vai pro select
-  // "Estado" (por isso a UF não entra no texto do endereço).
+// Autocomplete de endereço via ViaCEP (API pública/gratuita, sem chave).
+// Dispara sozinho quando o CEP tiver 8 dígitos.
   useEffect(() => {
     const digits = cep.replace(/\D/g, "");
     if (digits.length !== 8) return;
@@ -78,9 +77,8 @@ export default function AssinaturaEtapa2Page() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelado || data.erro) return;
-        const partes = [data.logradouro, data.bairro, data.localidade].filter(Boolean);
+        const partes = [data.logradouro, data.bairro, data.localidade && data.uf ? `${data.localidade}/${data.uf}` : ""].filter(Boolean);
         if (partes.length) setEndereco(partes.join(" - "));
-        if (data.uf) setEstado(data.uf);
       })
       .catch(() => {})
       .finally(() => { if (!cancelado) setBuscandoCep(false); });
@@ -101,7 +99,7 @@ export default function AssinaturaEtapa2Page() {
   };
 
   const validarDados = () => {
-    if (!cpfCnpj.trim() || !cep.trim() || !endereco.trim() || !numero.trim() || !estado.trim()) {
+    if (!cpfCnpj.trim() || !cep.trim() || !endereco.trim() || !numero.trim()) {
       setErro("Preencha CPF/CNPJ, CEP, endereço, número e estado para continuar.");
       return false;
     }
@@ -120,7 +118,7 @@ export default function AssinaturaEtapa2Page() {
     // Envia o cadastro e espera no mínimo 3s (simula a confirmação do pagamento).
     // Dados de cartão NÃO são enviados: o popup é apenas demonstrativo.
     const enderecoCompleto =
-      `${endereco}, nº ${numero.trim()}${complemento.trim() ? ` - ${complemento.trim()}` : ""} - ${estado}`;
+      `${endereco}, nº ${numero.trim()}${complemento.trim() ? ` - ${complemento.trim()}` : ""}`;
 
     const [res] = await Promise.all([
       fetch("/api/auth/cadastro", {
@@ -214,31 +212,14 @@ export default function AssinaturaEtapa2Page() {
 
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <AuthField label="Endereço" icon={<Home size={14} />} value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Ex: Av. Paulista - Bela Vista - São Paulo" />
+                  <AuthField label="Endereço" icon={<Home size={14} />} value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Ex: Av. Paulista - Bela Vista - São Paulo/SP" />
                 </div>
                 <div style={{ width: 110, flexShrink: 0 }}>
                   <AuthField label="Número" icon={<Hash size={14} />} value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex: 1000" />
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <AuthField label="Complemento (opcional)" icon={<Building2 size={14} />} value={complemento} onChange={(e) => setComplemento(e.target.value)} placeholder="Ex: Apto 12, Bloco B" />
-                </div>
-                <div style={{ width: 110, flexShrink: 0, marginBottom: 16 }}>
-                  <label style={{ display: "block", fontSize: 16, color: C.textMuted, marginBottom: 6, fontWeight: 500 }}>Estado</label>
-                  <select
-                    value={estado}
-                    onChange={(e) => setEstado(e.target.value)}
-                    style={{ width: "100%", backgroundColor: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.white, fontSize: 16, outline: "none" }}
-                  >
-                    <option value="">UF</option>
-                    {UFS.map((uf) => (
-                      <option key={uf} value={uf}>{uf}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <AuthField label="Complemento (opcional)" icon={<Building2 size={14} />} value={complemento} onChange={(e) => setComplemento(e.target.value)} placeholder="Ex: Apto 12, Bloco B" />
 
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontSize: 16, color: C.textMuted, marginBottom: 6, fontWeight: 500 }}>
