@@ -7,7 +7,7 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
-  celular: celular?: string | null;
+  celular?: string | null;
   cpfCnpj?: string | null;
   cep?: string | null;
   endereco?: string | null;
@@ -56,6 +56,7 @@ export interface Destinatario {
 }
 
 export interface EnderecoEntrega {
+  [key: string]: string;
   logradouro: string;
   numero: string;
   bairro: string;

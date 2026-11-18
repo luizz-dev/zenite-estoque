@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { criarSessao } from "@/lib/auth";
 
-const APP_URL = process.env.APP_URL!;
-
 export async function GET(req: NextRequest) {
+  const APP_URL = process.env.APP_URL?.replace(/\/$/, "") || req.nextUrl.origin;
+
   const erro = NextResponse.redirect(new URL("/login?erro=google", APP_URL));
 
   const code = req.nextUrl.searchParams.get("code");

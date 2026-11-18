@@ -30,17 +30,30 @@ function DadosFiscaisForm() {
   const [numero, setNumero] = useState(empresa?.numero || "");
   const [bairro, setBairro] = useState(empresa?.bairro || "");
   const [cidade, setCidade] = useState(empresa?.cidade || "");
-  const [uf, setUf] = useState(empresa?.uf || "SP");
+  const [uf, setUf] = useState(empresa?.uf || "");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // Consulta de CEP → IBGE simulada (offline, sem chamada externa real).
-  // Troque por uma chamada real ao ViaCEP/IBGE quando integrar de verdade.
-  const buscarIbge = () => {
+  // Consulta o endereço pelo ViaCEP e usa o código IBGE retornado pelo serviço.
+  const buscarIbge = async () => {
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) return;
-    setIbge({ codigo: "3550308", municipio: "São Paulo", uf: "SP" });
-    setCidade("São Paulo"); setUf("SP");
+
+    try {
+      const base = process.env.NEXT_PUBLIC_VIACEP_URL || "https://viacep.com.br/ws";
+      const res = await fetch(`${base}/${limpo}/json/`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.erro) throw new Error();
+
+      setRua(data.logradouro || "");
+      setBairro(data.bairro || "");
+      setCidade(data.localidade || "");
+      setUf(data.uf || "");
+      setIbge({ codigo: data.ibge || "", municipio: data.localidade || "", uf: data.uf || "" });
+    } catch {
+      setErro("Não foi possível consultar este CEP.");
+    }
   };
 
   const salvar = async () => {

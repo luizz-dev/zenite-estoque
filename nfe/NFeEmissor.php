@@ -96,6 +96,23 @@ class NFeEmissor
 
     private function emitirSimulado(string $xml, ?string $chave, ?string $simulacao): array
     {
+        $caminho = $this->config->getCertificatePath();
+        if ($caminho !== '' && is_file($caminho)) {
+            $certificado = Certificate::readPfx(file_get_contents($caminho), $this->config->getCertificatePassword());
+            $config = [
+                'atualizacao' => date('Y-m-d H:i:s'),
+                'tpAmb' => $this->config->getAmbientCode(),
+                'razaosocial' => 'MODA AURORA DEMO LTDA',
+                'cnpj' => '11222333000181',
+                'siglaUF' => 'SP',
+                'schemes' => nfeSchema(),
+                'versao' => '4.00',
+            ];
+            $tools = new Tools(json_encode($config), $certificado);
+            $tools->model(55);
+            $xml = $tools->signNFe($xml);
+        }
+
         $v = nfeValidarXml($xml);
         if (!$v['ok']) {
             throw new InvalidArgumentException('XML fora do schema: ' . implode(' | ', $v['erros']));
