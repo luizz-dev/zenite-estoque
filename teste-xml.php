@@ -16,8 +16,8 @@
  */
 
 require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/NFeConfig.php';
-require_once __DIR__ . '/NFeXmlBuilder.php';
+require_once __DIR__ . '/nfe/NFeConfig.php';
+require_once __DIR__ . '/nfe/NFeXmlBuilder.php';
 
 $config = new NFeConfig();
 

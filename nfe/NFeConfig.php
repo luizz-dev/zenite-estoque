@@ -74,7 +74,8 @@ class NFeConfig
      */
     private function getEnvFilePath(): string
     {
-        $baseDir = dirname(__FILE__);
+        // Os arquivos .env continuam na raiz do projeto.
+        $baseDir = dirname(__DIR__);
         $environment = getenv('NFE_ENVIRONMENT') ?: 'homologacao';
 
         // Tenta arquivo específico do ambiente

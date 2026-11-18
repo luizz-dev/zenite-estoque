@@ -30,7 +30,7 @@
  *              é sobrescrito automaticamente pela lib quando tpAmb=2)
  * $itens     : array de ['cProd','xProd','NCM','CFOP','uCom','qCom','vUnCom']
  */
-function gerarXMLNFe(NFeConfig $config, int $numero, int $serie, array $emitente, array $cliente, array $itens): string
+function gerarXMLNFe(NFeConfig $config, int $numero, int $serie, array $emitente, array $cliente, array $itens, array $opcoes = []): string
 {
     $make = new \NFePHP\NFe\Make();
 
@@ -178,4 +178,66 @@ function gerarXMLNFe(NFeConfig $config, int $numero, int $serie, array $emitente
     }
 
     return $xml;
+}
+
+function nfeSoDigitos(?string $valor): string
+{
+    return preg_replace('/\D/', '', (string) $valor) ?? '';
+}
+
+function nfeSchema(): string
+{
+    $schema = getenv('NFE_SCHEMA') ?: 'PL_010_V1.30';
+    return $schema;
+}
+
+function nfeChaveDoXml(string $xml): ?string
+{
+    $dom = new DOMDocument();
+    if (!@$dom->loadXML($xml)) {
+        return null;
+    }
+
+    $infNFe = $dom->getElementsByTagName('infNFe')->item(0);
+    if ($infNFe === null) {
+        return null;
+    }
+
+    $id = (string) $infNFe->attributes->getNamedItem('Id')?->nodeValue;
+    $chave = nfeSoDigitos($id);
+    return strlen($chave) === 44 ? $chave : null;
+}
+
+function nfeValidarXml(string $xml): array
+{
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true);
+    libxml_clear_errors();
+
+    if (!@$dom->loadXML($xml)) {
+        $erros = [];
+        foreach (libxml_get_errors() as $erro) {
+            $erros[] = trim($erro->message);
+        }
+        libxml_clear_errors();
+        return ['ok' => false, 'erros' => $erros ?: ['XML inválido']];
+    }
+
+    $root = dirname(__DIR__) . '/vendor/nfephp-org/sped-nfe/schemes/' . nfeSchema();
+    $xsd = $root . '/nfe_v4.00.xsd';
+    if (!is_file($xsd)) {
+        return ['ok' => false, 'erros' => ["Schema não encontrado: $xsd"]];
+    }
+
+    if (@$dom->schemaValidate($xsd)) {
+        libxml_clear_errors();
+        return ['ok' => true, 'erros' => []];
+    }
+
+    $erros = [];
+    foreach (libxml_get_errors() as $erro) {
+        $erros[] = trim($erro->message);
+    }
+    libxml_clear_errors();
+    return ['ok' => false, 'erros' => $erros ?: ['XML não passou na validação XSD']];
 }
