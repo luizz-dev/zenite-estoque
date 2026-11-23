@@ -7,7 +7,7 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
-  celular: celular?: string | null;
+  celular?: string | null;
   cpfCnpj?: string | null;
   cep?: string | null;
   endereco?: string | null;
@@ -27,6 +27,7 @@ export interface Empresa {
   numero: string;
   bairro: string;
   cidade: string;
+  cMunicipio: string;
   certificadoNome: string;
 }
 
@@ -56,6 +57,7 @@ export interface Destinatario {
 }
 
 export interface EnderecoEntrega {
+  [key: string]: string;
   logradouro: string;
   numero: string;
   bairro: string;
@@ -90,6 +92,9 @@ export interface NotaFiscal {
   valorTotal: number;
   statusFiscal: StatusFiscal;
   motivoRejeicao?: string | null;
+  chaveAcesso?: string | null;
+  protocolo?: string | null;
+  xmlAutorizado?: string | null;
   emitidaEm: string;
   itens: ItemNotaFiscal[];
 }

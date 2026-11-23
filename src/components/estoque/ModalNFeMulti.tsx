@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { FileText, Search, Plus, Trash2, X, Info, MapPin, CreditCard, ShieldCheck, AlertTriangle, Check } from "lucide-react";
 import { C } from "@/lib/constants";
-import { FORMAS_PAGAMENTO, CSOSN_OPTS, UFS, EMPRESA } from "@/lib/constants";
+import { FORMAS_PAGAMENTO, CSOSN_OPTS, UFS } from "@/lib/constants";
 import { getCfop, brl } from "@/lib/utils";
 import { Input, Select, FieldLabel } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost, BtnIcon } from "@/components/ui/Button";
@@ -17,7 +17,7 @@ interface ItemCarrinho {
 
 export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produto[]; onClose: () => void }) {
   const { produtos, empresa, emitirNota } = useApp();
-  const ufEmpresa = empresa?.uf || EMPRESA.uf;
+  const ufEmpresa = empresa?.uf || "";
 
   const [itens, setItens] = useState<ItemCarrinho[]>(() =>
     itensIniciais.map((p) => ({ produtoId: p.id, nome: p.nome, sku: p.sku, ncm: p.ncm, estoqueMax: p.quantidade, qtd: 1, valorUnit: p.precoVenda, cfop: null }))
@@ -198,8 +198,8 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
           <div style={{ borderRadius: 12, border: "1px solid rgba(0,180,216,0.22)", background: "rgba(0,180,216,0.06)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ color: C.cyan, display: "flex" }}><ShieldCheck size={16} /></span>
             <div>
-              <p style={{ color: C.cyanText, fontSize: 13.5, fontWeight: 600, margin: 0 }}>Emissão autorizada para {empresa?.razaoSocial || EMPRESA.razaoSocial}</p>
-              <p style={{ color: C.textMuted, fontSize: 13.5, margin: "2px 0 0" }}>{empresa?.regime || EMPRESA.regime}</p>
+              <p style={{ color: C.cyanText, fontSize: 13.5, fontWeight: 600, margin: 0 }}>Emissão autorizada para {empresa?.razaoSocial}</p>
+              <p style={{ color: C.textMuted, fontSize: 13.5, margin: "2px 0 0" }}>{empresa?.regime}</p>
             </div>
           </div>
 

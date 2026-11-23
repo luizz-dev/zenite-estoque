@@ -1,4 +1,4 @@
-import { EMPRESA, FORMAS_PAGAMENTO } from "./constants";
+import { FORMAS_PAGAMENTO } from "./constants";
 import type { Produto, StatusEstoque, NotaFiscal, ContaFixa, Movimentacao } from "./types";
 
 /** Formata um número como moeda brasileira (R$). */
@@ -21,7 +21,7 @@ export const getStatusEstoque = (qtd: number): StatusEstoque =>
  * Define o CFOP (5102 = venda interna / 6102 = venda interestadual) a partir
  * da UF do destinatário comparada à UF da empresa emitente.
  */
-export const getCfop = (ufDestino: string, ufEmpresa: string = EMPRESA.uf): string =>
+export const getCfop = (ufDestino: string, ufEmpresa: string): string =>
   ufDestino === ufEmpresa ? "5102" : "6102";
 
 /** Próximo número de NF-e, a partir do maior número já emitido. */

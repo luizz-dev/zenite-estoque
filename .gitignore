@@ -12,10 +12,10 @@ dist/
 
 # variaveis de ambiente (NUNCA suba arquivos com chaves/senhas reais)
 .env
-.env*.local
-.env.production
-.env.development
+.env*
 !.env.example
+*.pfx
+*.p12
 
 # prisma
 /prisma/generated

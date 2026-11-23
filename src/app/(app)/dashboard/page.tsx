@@ -4,8 +4,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Coins, Boxes, FileText, AlertTriangle, ArrowUp, ArrowDown, ExternalLink, Wallet } from "lucide-react";
-import { C } from "@/lib/constants";
-import { MEI } from "@/lib/constants";
+import { C, LIMITE_ANUAL_MEI } from "@/lib/constants";
 import { brl, pctVariacao, produtosComEstoqueBaixo, calcularLucroMes, ticketPorFormaPagamento, tendenciaOperacional } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -92,8 +91,12 @@ export default function DashboardPage() {
 
   const totalUnidadesEstoque = produtos.reduce((a, p) => a + p.quantidade, 0);
 
+  const variacaoFaturamento = faturamento.mesAnterior > 0
+    ? ((faturamento.mesAtual - faturamento.mesAnterior) / faturamento.mesAnterior) * 100
+    : 0;
+
   const metrics: { label: string; val: string; delta: string; pos?: boolean; neutral?: boolean; icon: ReactNode; glow: string }[] = [
-    { label: "Faturamento do Mês", val: brl(faturamento.mesAtual), delta: `${pctVariacao(faturamento.mesAtual, faturamento.mesAnterior) >= 0 ? "+" : ""}${pctVariacao(faturamento.mesAtual, faturamento.mesAnterior)}% vs. mês anterior`, pos: faturamento.mesAtual >= faturamento.mesAnterior, icon: <Coins size={22} />, glow: "rgba(72,55,232,0.2)" },
+    { label: "Faturamento do Mês", val: brl(faturamento.mesAtual), delta: `${variacaoFaturamento >= 0 ? "+" : ""}${variacaoFaturamento.toFixed(1).replace(".", ",")}% vs. mês anterior`, pos: faturamento.mesAtual >= faturamento.mesAnterior, icon: <Coins size={22} />, glow: "rgba(72,55,232,0.2)" },
     { label: "Total em Estoque", val: `${totalUnidadesEstoque} un.`, delta: `${produtos.length} produto${produtos.length !== 1 ? "s" : ""} cadastrado${produtos.length !== 1 ? "s" : ""}`, neutral: true, icon: <Boxes size={22} />, glow: "rgba(0,180,216,0.2)" },
     { label: "Notas Fiscais Emitidas", val: `${notas.length}`, delta: `${faturamento.qtdMesAtual} este mês`, pos: true, icon: <FileText size={22} />, glow: "rgba(87,57,196,0.2)" },
     { label: "Alertas Ativos", val: `${naoLidas}`, delta: naoLidas > 0 ? `${naoLidas} pendente${naoLidas > 1 ? "s" : ""}` : "Tudo em dia", pos: naoLidas === 0, icon: <AlertTriangle size={22} />, glow: "rgba(245,124,0,0.2)" },
@@ -101,9 +104,9 @@ export default function DashboardPage() {
 
   // MEI.limiteAnualMEI continua fixo de propósito — é o teto legal de
   // faturamento do MEI (R$ 81.000/ano), não um dado da empresa do usuário.
-  const pctLimite = Math.round((faturamento.anualAcumulado / MEI.limiteAnualMEI) * 100);
+  const pctLimite = Math.round((faturamento.anualAcumulado / LIMITE_ANUAL_MEI) * 100);
   const toneLimite = pctLimite >= 85 ? "red" : pctLimite >= 60 ? "amber" : "purple";
-  const restante = MEI.limiteAnualMEI - faturamento.anualAcumulado;
+  const restante = LIMITE_ANUAL_MEI - faturamento.anualAcumulado;
   const baixoEstoque = produtosComEstoqueBaixo(produtos);
 
   return (
@@ -138,7 +141,7 @@ export default function DashboardPage() {
           <div style={{ marginTop: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
               <span style={{ color: C.white, fontSize: 18, fontWeight: 700 }}>{brl(faturamento.anualAcumulado)}</span>
-              <span style={{ color: C.textMuted, fontSize: 16 }}>de {brl(MEI.limiteAnualMEI)}</span>
+              <span style={{ color: C.textMuted, fontSize: 16 }}>de {brl(LIMITE_ANUAL_MEI)}</span>
             </div>
             <ProgressBar pct={pctLimite} tone={toneLimite as "purple" | "amber" | "red"} />
             <p style={{ color: C.textSec, fontSize: 16, margin: "10px 0 0", lineHeight: 1.55 }}>

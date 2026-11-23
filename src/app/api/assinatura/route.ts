@@ -8,7 +8,7 @@
 // com "usuarioId" e apagar a linha equivalente sem ela.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-// import { obterUsuarioIdDaSessao } from "@/lib/auth"; // TODO: descomentar quando Assinatura tiver usuarioId
+import { obterUsuarioIdDaSessao } from "@/lib/auth";
 import { PLANOS_ASSINATURA } from "@/lib/constants";
 
 function calcularProximaCobranca(plano: string): Date {
@@ -18,15 +18,13 @@ function calcularProximaCobranca(plano: string): Date {
   return d;
 }
 
-async function obterOuCriarAssinatura(/* usuarioId: string */) {
-  // TODO: quando a coluna existir, troque a linha abaixo por:
-  // let assinatura = await prisma.assinatura.findUnique({ where: { usuarioId } });
-  let assinatura = await prisma.assinatura.findFirst();
+async function obterOuCriarAssinatura(usuarioId: string) {
+  let assinatura = await prisma.assinatura.findUnique({ where: { usuarioId } });
 
   if (!assinatura) {
     assinatura = await prisma.assinatura.create({
       data: {
-        // usuarioId, // TODO: descomentar junto com a linha do findUnique acima
+        usuarioId,
         proximaCobranca: calcularProximaCobranca("mensal"),
       },
     });
@@ -36,23 +34,21 @@ async function obterOuCriarAssinatura(/* usuarioId: string */) {
 
 // GET /api/assinatura — retorna a assinatura (cria uma se não existir)
 export async function GET() {
-  // TODO: descomentar quando Assinatura tiver usuarioId
-  // const usuarioId = await obterUsuarioIdDaSessao();
-  // if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
-  const assinatura = await obterOuCriarAssinatura(/* usuarioId */);
+  const assinatura = await obterOuCriarAssinatura(usuarioId);
   return NextResponse.json(assinatura);
 }
 
 // PATCH /api/assinatura
 // Body: { acao: "trocar-plano", plano: "mensal" | "anual" } ou { acao: "cancelar" } ou { acao: "reativar" }
 export async function PATCH(req: NextRequest) {
-  // TODO: descomentar quando Assinatura tiver usuarioId
-  // const usuarioId = await obterUsuarioIdDaSessao();
-  // if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
+  const usuarioId = await obterUsuarioIdDaSessao();
+  if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
   const { acao, plano } = await req.json();
-  const assinatura = await obterOuCriarAssinatura(/* usuarioId */);
+  const assinatura = await obterOuCriarAssinatura(usuarioId);
 
   if (acao === "cancelar") {
     const atualizada = await prisma.assinatura.update({ where: { id: assinatura.id }, data: { status: "cancelada" } });

@@ -1,10 +1,8 @@
 // Destino: prisma/seed.ts
-// Zera tudo e recria com um usuário padrão (admin@gmail.com / admin) dono
-// de todos os dados — usa os dados fixos que já existiam em
-// src/lib/constants.ts (EMPRESA, PLANOS_ASSINATURA) em vez de duplicá-los.
+// Script destrutivo: limpa os dados e recria o usuário administrativo de desenvolvimento.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { EMPRESA, PLANOS_ASSINATURA } from "../src/lib/constants";
+import { PLANOS_ASSINATURA } from "../src/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -19,25 +17,17 @@ async function main() {
   await prisma.assinatura.deleteMany();
   await prisma.usuario.deleteMany();
 
+  const seedEmail = process.env.SEED_ADMIN_EMAIL;
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (!seedEmail || !seedPassword || seedPassword.length < 12) {
+    throw new Error("Defina SEED_ADMIN_EMAIL e SEED_ADMIN_PASSWORD (mínimo 12 caracteres) antes do seed.");
+  }
+
   const admin = await prisma.usuario.create({
     data: {
-      nome: "Administrador",
-      email: "admin@gmail.com",
-      senhaHash: await bcrypt.hash("admin", 10),
-      celular: "(11) 90000-0000",
-    },
-  });
-
-  // Dados fiscais vindos de src/lib/constants.ts (EMPRESA)
-  await prisma.empresa.create({
-    data: {
-      usuarioId: admin.id,
-      configurada: true,
-      razaoSocial: EMPRESA.razaoSocial,
-      cnpj: EMPRESA.cnpj,
-      ie: EMPRESA.ie,
-      uf: EMPRESA.uf,
-      regime: EMPRESA.regime,
+      nome: process.env.SEED_ADMIN_NAME || "Administrador",
+      email: seedEmail,
+      senhaHash: await bcrypt.hash(seedPassword, 12),
     },
   });
 

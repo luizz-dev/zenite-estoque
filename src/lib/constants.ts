@@ -36,18 +36,6 @@ export const TONE: Record<Tone, { bg: string; color: string; border: string }> =
   muted:  { bg: "rgba(92,109,144,0.12)",  color: C.textMuted,  border: "rgba(92,109,144,0.25)" },
 };
 
-// Dados fixos da sua empresa — troque pelos seus dados reais.
-// Em produção o ideal é mover isso para uma tabela "Empresa" no banco
-// (ver seção "Próximos passos" no README_INTEGRACAO.md).
-export const EMPRESA = {
-  razaoSocial: "Bom Tecido Confecções ME",
-  cnpj: "12.345.678/0001-90",
-  ie: "114.857.230.117",
-  uf: "SP",
-  regime: "MEI — Simples Nacional",
-  certValidade: "03/2027",
-};
-
 export const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
 export const FORMAS_PAGAMENTO = [
@@ -80,17 +68,4 @@ export const PLANOS_ASSINATURA = [
   { v: "anual", l: "Anual", valor: 479.0, sub: "Equivale a R$ 39,92/mês — 2 meses grátis" },
 ] as const;
 
-// Indicadores do MEI mostrados no Dashboard.
-// Hoje são fixos; a seção "Próximos passos" explica como calculá-los a
-// partir das notas fiscais reais do banco.
-export const MEI = {
-  faturamentoMes: 18450,
-  faturamentoMesAnterior: 16420,
-  ticketMedio: 154.3,
-  ticketMedioAnterior: 148.7,
-  faturamentoAnualAcumulado: 54320,
-  limiteAnualMEI: 81000,
-  dasValor: 76.9,
-  dasVencimento: "19/06/2026",
-  dasDiasRestantes: 3,
-};
+export const LIMITE_ANUAL_MEI = 81000;

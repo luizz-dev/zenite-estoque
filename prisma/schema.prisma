@@ -49,6 +49,7 @@ model Empresa {
   numero          String   @default("")
   bairro          String   @default("")
   cidade          String   @default("")
+  cMunicipio      String   @default("")
   certificadoNome String   @default("")
   atualizadoEm    DateTime @updatedAt
 
@@ -100,6 +101,9 @@ model NotaFiscal {
   valorTotal       Float
   statusFiscal     String   @default("autorizada")
   motivoRejeicao   String?
+  chaveAcesso      String?
+  protocolo        String?
+  xmlAutorizado    String?  @db.Text
   emitidaEm        DateTime @default(now())
 
   itens ItemNotaFiscal[]

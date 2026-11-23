@@ -19,8 +19,8 @@ export async function PATCH(req: NextRequest) {
   if (!usuarioId) return NextResponse.json({ erro: "Não autenticado." }, { status: 401 });
 
   const dados = await req.json();
-  if (!dados.razaoSocial?.trim() || !dados.ie?.trim()) {
-    return NextResponse.json({ erro: "Preencha Razão Social e Inscrição Estadual." }, { status: 400 });
+  if (!dados.razaoSocial?.trim() || !dados.cnpj?.replace(/\D/g, "") || !dados.ie?.trim()) {
+    return NextResponse.json({ erro: "Preencha Razão Social, CNPJ e Inscrição Estadual." }, { status: 400 });
   }
 
   let empresa = await prisma.empresa.findUnique({ where: { usuarioId } });

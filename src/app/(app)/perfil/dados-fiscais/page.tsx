@@ -21,6 +21,7 @@ function DadosFiscaisForm() {
 
   const [razaoSocial, setRazaoSocial] = useState(empresa?.razaoSocial || "");
   const [ie, setIe] = useState(empresa?.ie || "");
+  const [cnpj, setCnpj] = useState(empresa?.cnpj || "");
   const [certificado, setCertificado] = useState<File | null>(null);
   const [senhaCert, setSenhaCert] = useState("");
   const [regime, setRegime] = useState(empresa?.regime || REGIMES_TRIBUTARIOS[0]);
@@ -30,21 +31,36 @@ function DadosFiscaisForm() {
   const [numero, setNumero] = useState(empresa?.numero || "");
   const [bairro, setBairro] = useState(empresa?.bairro || "");
   const [cidade, setCidade] = useState(empresa?.cidade || "");
-  const [uf, setUf] = useState(empresa?.uf || "SP");
+  const [uf, setUf] = useState(empresa?.uf || "");
+  const [cMunicipio, setCMunicipio] = useState(empresa?.cMunicipio || "");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // Consulta de CEP → IBGE simulada (offline, sem chamada externa real).
-  // Troque por uma chamada real ao ViaCEP/IBGE quando integrar de verdade.
-  const buscarIbge = () => {
+  // Consulta o endereço pelo ViaCEP e usa o código IBGE retornado pelo serviço.
+  const buscarIbge = async () => {
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) return;
-    setIbge({ codigo: "3550308", municipio: "São Paulo", uf: "SP" });
-    setCidade("São Paulo"); setUf("SP");
+
+    try {
+      const base = process.env.NEXT_PUBLIC_VIACEP_URL || "https://viacep.com.br/ws";
+      const res = await fetch(`${base}/${limpo}/json/`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.erro) throw new Error();
+
+      setRua(data.logradouro || "");
+      setBairro(data.bairro || "");
+      setCidade(data.localidade || "");
+      setUf(data.uf || "");
+      setCMunicipio(data.ibge || "");
+      setIbge({ codigo: data.ibge || "", municipio: data.localidade || "", uf: data.uf || "" });
+    } catch {
+      setErro("Não foi possível consultar este CEP.");
+    }
   };
 
   const salvar = async () => {
-    if (!razaoSocial.trim() || !ie.trim()) return setErro("Preencha Razão Social e Inscrição Estadual.");
+    if (!razaoSocial.trim() || !cnpj.replace(/\D/g, "") || !ie.trim()) return setErro("Preencha Razão Social, CNPJ e Inscrição Estadual.");
     // A exigência do certificado A1 (.pfx) fica comentada abaixo para
     // facilitar testes — reative removendo o comentário em produção.
     // if (!certificado) return setErro("Envie o Certificado Digital A1 (.pfx).");
@@ -52,7 +68,7 @@ function DadosFiscaisForm() {
     setErro("");
     setSalvando(true);
     const resultado = await salvarDadosFiscais({
-      razaoSocial, ie, regime, uf, cep, rua, numero, bairro, cidade,
+      razaoSocial, cnpj, ie, regime, uf, cep, rua, numero, bairro, cidade, cMunicipio,
       certificadoNome: certificado?.name || "",
     });
     setSalvando(false);
@@ -72,8 +88,9 @@ function DadosFiscaisForm() {
         )}
 
         <Card>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-            <div><FieldLabel>Razão Social</FieldLabel><Input value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Ex: Bom Tecido Confecções ME" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div><FieldLabel>Razão Social</FieldLabel><Input value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Ex: Minha Empresa LTDA" /></div>
+            <div><FieldLabel>CNPJ</FieldLabel><Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" /></div>
             <div><FieldLabel>Inscrição Estadual</FieldLabel><Input value={ie} onChange={(e) => setIe(e.target.value)} placeholder="000.000.000.000" /></div>
           </div>
 

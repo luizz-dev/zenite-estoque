@@ -83,8 +83,10 @@ export default function ModelPix({
   const mm = String(Math.floor(restante / 60)).padStart(2, "0");
   const ss = String(restante % 60).padStart(2, "0");
 
-  const copiaECola = `00020126580014BR.GOV.BCB.PIX0136zenite-demo-${codigoId}@pix.com.br5204000053039865406${valor
-    .toFixed(2)}5802BR5907ZENITE6009SAO PAULO62070503***6304DEMO`;
+  const chavePix = process.env.NEXT_PUBLIC_PIX_KEY?.trim();
+  const copiaECola = chavePix
+    ? `00020126580014BR.GOV.BCB.PIX0136${chavePix}5204000053039865406${valor.toFixed(2)}5802BR5907ZENITE6009SAO PAULO62070503***6304`
+    : `00020126580014BR.GOV.BCB.PIX0136AMBIENTE-DE-DEMONSTRACAO5204000053039865406${valor.toFixed(2)}5802BR5907ZENITE6009SAO PAULO62070503***6304DEMO`;
 
   const copiar = async () => {
     try {

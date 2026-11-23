@@ -1,7 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const appUrl = process.env.APP_URL?.replace(/\/$/, "") || req.nextUrl.origin;
+  if (!clientId) {
+    return NextResponse.redirect(new URL("/login?erro=google_config", appUrl));
+  }
+
   const state = crypto.randomUUID();
   const store = await cookies();
   store.set("google_oauth_state", state, {
@@ -13,8 +19,8 @@ export async function GET() {
   });
 
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: `${process.env.APP_URL}/api/auth/google/callback`,
+    client_id: clientId,
+    redirect_uri: `${appUrl}/api/auth/google/callback`,
     response_type: "code",
     scope: "openid email profile",
     state,
