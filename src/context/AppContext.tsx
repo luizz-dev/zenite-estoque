@@ -51,8 +51,23 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+  } catch {
+    throw new Error("Não foi possível conectar ao servidor.");
+  }
+
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    if (!res.ok) throw new Error("Erro na requisição.");
+  }
+
   if (!res.ok) throw new Error(data?.erro || "Erro na requisição.");
   return data as T;
 }
@@ -71,17 +86,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const recarregarTudo = useCallback(async () => {
     setCarregando(true);
     try {
-      const [me, emp, prods, nts, movs, notifs, contas, assin] = await Promise.all([
-        fetch("/api/auth/me").then((r) => (r.ok ? r.json() : { usuario: null })),
-        fetchJson<Empresa>("/api/empresa"),
-        fetchJson<Produto[]>("/api/produtos"),
-        fetchJson<NotaFiscal[]>("/api/notas"),
-        fetchJson<Movimentacao[]>("/api/movimentacoes"),
-        fetchJson<Notificacao[]>("/api/notificacoes"),
-        fetchJson<ContaFixa[]>("/api/contas"),
-        fetchJson<Assinatura>("/api/assinatura"),
+      const me = await fetch("/api/auth/me")
+        .then((r) => (r.ok ? r.json() : { usuario: null }))
+        .catch(() => ({ usuario: null }));
+
+      setUsuario(me.usuario ?? null);
+
+      if (!me.usuario) {
+        setUsuario(null);
+        setEmpresa(null);
+        setProdutos([]);
+        setNotas([]);
+        setMovimentacoes([]);
+        setNotificacoes([]);
+        setContasFixas([]);
+        setAssinatura(null);
+        return;
+      }
+
+      const [emp, prods, nts, movs, notifs, contas, assin] = await Promise.all([
+        fetchJson<Empresa>("/api/empresa").catch(() => null),
+        fetchJson<Produto[]>("/api/produtos").catch(() => []),
+        fetchJson<NotaFiscal[]>("/api/notas").catch(() => []),
+        fetchJson<Movimentacao[]>("/api/movimentacoes").catch(() => []),
+        fetchJson<Notificacao[]>("/api/notificacoes").catch(() => []),
+        fetchJson<ContaFixa[]>("/api/contas").catch(() => []),
+        fetchJson<Assinatura>("/api/assinatura").catch(() => null),
       ]);
-      setUsuario(me.usuario);
+
       setEmpresa(emp);
       setProdutos(prods);
       setNotas(nts);
