@@ -120,12 +120,17 @@ export async function POST(req: NextRequest) {
         throw new Error("Serviço NF-e não configurado. Confira NFE_SERVICE_URL e NFE_SERVICE_TOKEN.");
       }
 
-      const respostaService = await fetch(`${serviceUrl.replace(/\/$/, "")}/emitir`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Service-Token": serviceToken },
-        body: JSON.stringify(dadosNFe),
-        signal: AbortSignal.timeout(30000),
-      });
+      let respostaService: Response;
+      try {
+        respostaService = await fetch(`${serviceUrl.replace(/\/$/, "")}/emitir`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Service-Token": serviceToken },
+          body: JSON.stringify(dadosNFe),
+          signal: AbortSignal.timeout(30000),
+        });
+      } catch {
+        throw new Error("O serviço NF-e local não está disponível na porta 8081. Inicie o emissor antes de emitir a nota.");
+      }
 
       const fiscal = await respostaService.json();
       if (!respostaService.ok) {
