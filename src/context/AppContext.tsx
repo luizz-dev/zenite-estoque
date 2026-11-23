@@ -52,8 +52,21 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.erro || "Erro na requisição.");
+  const contentType = res.headers.get("content-type") ?? "";
+  const texto = await res.text();
+
+  let data: any = null;
+  if (contentType.includes("application/json") || texto.trim().startsWith("{")) {
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      throw new Error("A resposta da API não é um JSON válido.");
+    }
+  } else if (texto.trim()) {
+    throw new Error(`A API respondeu com HTML ou texto em vez de JSON (HTTP ${res.status}).`);
+  }
+
+  if (!res.ok) throw new Error(data?.erro || `Erro na requisição (HTTP ${res.status}).`);
   return data as T;
 }
 
