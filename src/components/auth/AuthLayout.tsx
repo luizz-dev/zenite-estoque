@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import React from "react";
 import Image from "next/image";
 import { C } from "@/lib/constants";
@@ -157,6 +158,10 @@ export function AuthField({
   onChange,
   placeholder,
   onKeyDown,
+  inputMode,
+  maxLength,
+  autoComplete,
+  rightElement,
 }: {
   label: string;
   icon?: React.ReactNode;
@@ -165,7 +170,29 @@ export function AuthField({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
+  autoComplete?: string;
+  rightElement?: React.ReactNode;
 }) {
+  const [verSenha, setVerSenha] = React.useState(false);
+
+  // Campo de senha sem olho próprio ganha o olho automaticamente
+  const ehSenha = type === "password" && !rightElement;
+  const lado = ehSenha ? (
+    <button
+      type="button"
+      onClick={() => setVerSenha((v) => !v)}
+      aria-label={verSenha ? "Ocultar senha" : "Mostrar senha"}
+      aria-pressed={verSenha}
+      style={{ background: "none", border: "none", padding: 4, color: C.textMuted, cursor: "pointer", display: "flex" }}
+    >
+      {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  ) : (
+    rightElement
+  );
+
   return (
     <div style={{ marginBottom: 16 }}>
       <label
@@ -193,11 +220,14 @@ export function AuthField({
           </span>
         )}
         <input
-          type={type}
+          type={ehSenha && verSenha ? "text" : type}
           value={value}
           onChange={onChange}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          autoComplete={autoComplete}
           style={{
             width: "100%",
             backgroundColor: "rgba(255,255,255,0.05)",
@@ -205,11 +235,17 @@ export function AuthField({
             borderRadius: 8,
             padding: "10px 12px",
             paddingLeft: icon ? 36 : 12,
+            paddingRight: lado ? 40 : 12,
             color: C.white,
             fontSize: 16,
             outline: "none",
           }}
         />
+        {lado && (
+          <span style={{ position: "absolute", right: 10, display: "flex" }}>
+            {lado}
+          </span>
+        )}
       </div>
     </div>
   );

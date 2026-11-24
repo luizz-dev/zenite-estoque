@@ -5,6 +5,7 @@
 // dados no navegador (sessionStorage) pra Etapa 2 enviar tudo junto no
 // final. Nenhuma conta é criada e nenhuma sessão existe até a Etapa 2
 // terminar com sucesso.
+import { mascararTelefone, somenteDigitos } from "@/lib/mascaras";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -26,8 +27,13 @@ export default function CadastroPage() {
     if (!nome.trim() || !email.trim() || !celular.trim() || !senha.trim()) {
       return setErro("Preencha todos os campos para continuar.");
     }
+    const celularDigitos = somenteDigitos(celular).length;
+    if (celularDigitos !== 10 && celularDigitos !== 11) {
+      return setErro("Informe o celular com DDD (10 ou 11 dígitos).");
+    }
     if (senha.length < 6) return setErro("A senha deve ter pelo menos 6 caracteres.");
     if (senha !== confirmarSenha) return setErro("As senhas não coincidem.");
+    
 
     setErro("");
     sessionStorage.setItem("zenite_cadastro_etapa1", JSON.stringify({ nome, email, celular, senha }));
@@ -43,8 +49,7 @@ export default function CadastroPage() {
 
           <AuthField label="Nome completo" icon={<User size={14} />} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Ana Souza" />
           <AuthField label="E-mail" icon={<Mail size={14} />} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: exemplo@mail.com" />
-          <AuthField label="Celular" icon={<Phone size={14} />} value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="Ex: (11) 91234-5678" />
-          <AuthField label="Senha" icon={<KeyRound size={14} />} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
+          <AuthField label="Celular" icon={<Phone size={14} />} type="tel" value={celular} onChange={(e) => setCelular(mascararTelefone(e.target.value))} placeholder="Ex: (11) 91234-5678" inputMode="numeric" autoComplete="tel-national" />          <AuthField label="Senha" icon={<KeyRound size={14} />} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
           <AuthField label="Confirmar senha" icon={<KeyRound size={14} />} type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
             placeholder="Repita a senha" onKeyDown={(e) => e.key === "Enter" && continuar()} />
 
