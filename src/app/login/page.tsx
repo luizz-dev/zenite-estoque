@@ -27,15 +27,34 @@ export default function LoginPage() {
     if (!email.trim() || !senha.trim()) return setErro("Preencha e-mail e senha para continuar.");
     setErro("");
     setEntrando(true);
-    const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, senha }) });
-    setEntrando(false);
-    if (!res.ok) {
-      const data = await res.json();
-      return setErro(data.erro || "Não foi possível entrar.");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), senha }),
+      });
+
+      let data: { erro?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        if (!res.ok) throw new Error("Erro na resposta do servidor.");
+      }
+
+      if (!res.ok) {
+        setErro(data.erro || "Não foi possível entrar.");
+        return;
+      }
+
+      await recarregarTudo();
+      router.push("/dashboard");
+      router.refresh();
+    } catch (erro) {
+      setErro(erro instanceof Error ? erro.message : "Não foi possível conectar ao servidor.");
+    } finally {
+      setEntrando(false);
     }
-    await recarregarTudo();
-    router.push("/dashboard");
-    router.refresh();
   };
 
   return (
