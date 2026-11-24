@@ -121,6 +121,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setNotificacoes(notifs);
       setContasFixas(contas);
       setAssinatura(assin);
+    } catch (e) {
+      // Sem sessão (login/cadastro) a API responde 401: é esperado, não é erro.
+      if (!(e instanceof Error && e.message === "Não autenticado.")) console.error(e);
     } finally {
       setCarregando(false);
     }
