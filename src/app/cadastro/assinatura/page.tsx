@@ -10,10 +10,10 @@
 // Versão unificada: pagamento com popup (Cartão/Pix) e tela de espera
 // (branch models_assinatura) + campo Estado, ViaCEP e recarga do estado
 // do app após o cadastro (main).
+import { mascararCpfCnpj, mascararCep, somenteDigitos } from "@/lib/mascaras";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { IdCard, MapPin, Home, Hash, Building2, AlertTriangle, CreditCard, QrCode, Check } from "lucide-react";
-import { C, PLANOS_ASSINATURA } from "@/lib/constants";
+import { IdCard, MapPin, Home, Hash, Building2, AlertTriangle, CreditCard, QrCode, Check, Eye, EyeOff } from "lucide-react";import { C, PLANOS_ASSINATURA } from "@/lib/constants";
 import { AuthBackground, AuthSplitCard, AuthField, OnboardingStepper } from "@/components/auth/AuthLayout";
 import { BtnPrimary } from "@/components/ui/Button";
 import ModelCredito, { type DadosCartao } from "@/components/Models/ModelCredito";
@@ -36,6 +36,7 @@ export default function AssinaturaEtapa2Page() {
   const [carregando, setCarregando] = useState(true);
 
   const [cpfCnpj, setCpfCnpj] = useState("");
+  const [mostrarDoc, setMostrarDoc] = useState(false);
   const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
   const [numero, setNumero] = useState("");
@@ -99,8 +100,17 @@ export default function AssinaturaEtapa2Page() {
   };
 
   const validarDados = () => {
-    if (!cpfCnpj.trim() || !cep.trim() || !endereco.trim() || !numero.trim()) {
-      setErro("Preencha CPF/CNPJ, CEP, endereço, número e estado para continuar.");
+    const docDigitos = somenteDigitos(cpfCnpj).length;
+    if (docDigitos !== 11 && docDigitos !== 14) {
+      setErro("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).");
+      return false;
+    }
+    if (somenteDigitos(cep).length !== 8) {
+      setErro("O CEP deve ter 8 dígitos.");
+      return false;
+    }
+    if (!endereco.trim() || !numero.trim()) {
+      setErro("Preencha endereço e número para continuar.");
       return false;
     }
     if (!formaPagamento) {
@@ -126,8 +136,8 @@ export default function AssinaturaEtapa2Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...dadosEtapa1,
-          cpfCnpj,
-          cep,
+          cpfCnpj: somenteDigitos(cpfCnpj),
+          cep: somenteDigitos(cep),
           endereco: enderecoCompleto,
           formaPagamento,
           plano,
@@ -191,7 +201,8 @@ export default function AssinaturaEtapa2Page() {
     : "✓ Pix confirmado. Clique em Finalizar cadastro para criar sua conta.";
 
   if (carregando) return null;
-
+  const docDigitos = somenteDigitos(cpfCnpj).length;
+  const docTipo = docDigitos <= 11 ? "CPF" : "CNPJ";
   return (
     <AuthBackground>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: 720 }}>
@@ -206,8 +217,33 @@ export default function AssinaturaEtapa2Page() {
                 Última etapa — escolha seu plano e confirme seus dados.
               </p>
 
-              <AuthField label="CPF ou CNPJ" icon={<IdCard size={14} />} value={cpfCnpj} onChange={(e) => setCpfCnpj(e.target.value)} placeholder="Ex: 123.456.789-00" />
-              <AuthField label="CEP" icon={<MapPin size={14} />} value={cep} onChange={(e) => setCep(e.target.value)} placeholder="Ex: 01310-100" />
+              <AuthField
+                label="CPF ou CNPJ"
+                icon={<IdCard size={14} />}
+                type={mostrarDoc ? "text" : "password"}
+                value={cpfCnpj}
+                onChange={(e) => setCpfCnpj(mascararCpfCnpj(e.target.value))}
+                placeholder="Ex: 123.456.789-00"
+                inputMode="numeric"
+                autoComplete="off"
+                rightElement={
+                  <button
+                    type="button"
+                    onClick={() => setMostrarDoc((v) => !v)}
+                    aria-label={mostrarDoc ? "Ocultar CPF/CNPJ" : "Mostrar CPF/CNPJ"}
+                    aria-pressed={mostrarDoc}
+                    style={{ background: "none", border: "none", padding: 4, color: C.textMuted, cursor: "pointer", display: "flex" }}
+                  >
+                    {mostrarDoc ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
+              />
+              {docDigitos > 0 && (
+                <p style={{ color: docDigitos === 11 || docDigitos === 14 ? "#34D399" : C.textMuted, fontSize: 11, margin: "-10px 0 12px" }}>
+                  {docTipo} · {docDigitos}/{docTipo === "CPF" ? 11 : 14} dígitos
+                </p>
+              )}
+              <AuthField label="CEP" icon={<MapPin size={14} />} value={cep} onChange={(e) => setCep(mascararCep(e.target.value))} placeholder="Ex: 01310-100" inputMode="numeric" />
               {buscandoCep && <p style={{ color: C.textMuted, fontSize: 11, margin: "-10px 0 12px" }}>Buscando endereço...</p>}
 
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
