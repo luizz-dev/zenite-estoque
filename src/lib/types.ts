@@ -97,6 +97,7 @@ export interface NotaFiscal {
   xmlAutorizado?: string | null;
   emitidaEm: string;
   itens: ItemNotaFiscal[];
+  temDanfe?: boolean;
 }
 
 // Payload enviado pelo front ao endpoint POST /api/notas

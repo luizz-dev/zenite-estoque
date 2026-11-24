@@ -15,7 +15,10 @@ export async function GET() {
     include: { itens: true },
     orderBy: { emitidaEm: "desc" },
   });
-  return NextResponse.json(notas);
+  return NextResponse.json(notas.map((nota) => ({
+    ...nota,
+    temDanfe: Boolean(nota.xmlAutorizado),
+  })));
 }
 
 export async function POST(req: NextRequest) {
@@ -207,7 +210,10 @@ export async function POST(req: NextRequest) {
       return nota;
     });
 
-    return NextResponse.json(resultado, { status: 201 });
+    return NextResponse.json({
+      ...resultado,
+      temDanfe: Boolean(resultado.xmlAutorizado),
+    }, { status: 201 });
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro ao emitir a nota fiscal.";
     return NextResponse.json({ erro: mensagem }, { status: 400 });

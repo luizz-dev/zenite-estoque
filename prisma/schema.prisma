@@ -105,6 +105,7 @@ model NotaFiscal {
   protocolo        String?
   xmlAutorizado    String?  @db.Text
   emitidaEm        DateTime @default(now())
+  
 
   itens ItemNotaFiscal[]
 
