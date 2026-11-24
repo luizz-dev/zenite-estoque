@@ -1,25 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Filter, ChevronDown, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { C, STATUS_FISCAL_INFO } from "@/lib/constants";
 import { FORMAS_PAGAMENTO } from "@/lib/constants";
-import { brl } from "@/lib/utils";
+import { brl, MOTIVO_VENDA } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
 import type { StatusFiscal } from "@/lib/types";
 import { PageLoading } from "@/components/ui/Loading";
+import { BtnPrimary } from "@/components/ui/Button";
+import { ModalNFeMulti } from "@/components/estoque/ModalNFeMulti";
+import type { Movimentacao } from "@/lib/types";
 
 const ITENS_POR_PAGINA = 10;
 
 type Evento =
-  | { tipo: "entrada" | "saida"; id: string; item: string; qtd: number; motivo?: string | null; observacao?: string | null; data: string }
+  | { tipo: "entrada" | "saida"; id: string; item: string; qtd: number; motivo?: string | null; observacao?: string | null; data: string; valor?: number | null; notaId?: string | null; mov: Movimentacao }
   | { tipo: "nfe"; id: string; numero: number; itens: { nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }[]; valorTotal: number; destinatarioNome: string; destinatarioDoc: string; destinatarioUf: string; formaPagamento: string; statusFiscal: StatusFiscal; motivoRejeicao?: string | null; data: string };
 
 export default function HistoricoPage() {
-  const { movimentacoes, notas, carregando } = useApp();
+  const { movimentacoes, notas, produtos, empresa, carregando } = useApp();
+  const router = useRouter();
+  const [vendaParaNota, setVendaParaNota] = useState<Movimentacao | null>(null);
   const [filtro, setFiltro] = useState<"todos" | "entrada" | "saida" | "nfe">("todos");
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const [pagina, setPagina] = useState(1);
@@ -32,7 +38,7 @@ export default function HistoricoPage() {
   };
 
   const eventos: Evento[] = useMemo(() => {
-    const movs: Evento[] = movimentacoes.map((m) => ({ tipo: m.tipo, id: m.id, item: m.item, qtd: m.quantidade, motivo: m.motivo, observacao: m.observacao, data: m.data }));
+    const movs: Evento[] = movimentacoes.map((m) => ({ tipo: m.tipo, id: m.id, item: m.item, qtd: m.quantidade, motivo: m.motivo, observacao: m.observacao, data: m.data, valor: m.valor, notaId: m.notaId, mov: m }));
     const nfes: Evento[] = notas.map((n) => ({
       tipo: "nfe", id: n.id, numero: n.numero, itens: n.itens, valorTotal: n.valorTotal,
       destinatarioNome: n.destinatarioNome, destinatarioDoc: n.destinatarioDoc, destinatarioUf: n.destinatarioUf,
@@ -49,6 +55,22 @@ export default function HistoricoPage() {
   const paginaAtual = Math.min(pagina, totalPaginas);
   const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const exibidosPagina = exibidos.slice(inicio, inicio + ITENS_POR_PAGINA);
+
+  // Abre a emissão de NF-e para uma venda da baixa (o estoque não é alterado).
+  const emitirNotaDaVenda = (mov: Movimentacao) => {
+    if (!empresa?.configurada) { router.push("/perfil/dados-fiscais?motivo=nfe"); return; }
+    setVendaParaNota(mov);
+  };
+  // A nota da venda é da variação (tamanho/cor) vendida; vendas antigas sem variação só
+  // podem emitir se o produto tiver uma única variação.
+  const acharItemDaVenda = (mov: Movimentacao) => {
+    const produto = produtos.find((p) => p.id === mov.produtoId);
+    if (!produto) return undefined;
+    const variacoes = produto.variacoes ?? [];
+    const variacao = variacoes.find((v) => v.id === mov.variacaoId) ?? (variacoes.length === 1 ? variacoes[0] : undefined);
+    return variacao ? { produto, variacao } : undefined;
+  };
+  const itemDaVenda = vendaParaNota ? acharItemDaVenda(vendaParaNota) : undefined;
 
   const irParaPagina = (p: number) => setPagina(Math.min(Math.max(1, p), totalPaginas));
 
@@ -96,12 +118,29 @@ export default function HistoricoPage() {
                       <p style={{ color: info.color, fontSize: 14.5, fontWeight: 500, margin: "2px 0 0" }}>
                         {info.label}{isNfe && ` · ${brl(ev.valorTotal)}`}{!isNfe && ev.motivo && ` · ${ev.motivo}`}
                       </p>
+                      {!isNfe && ev.motivo === MOTIVO_VENDA && ev.valor != null && (
+                        <p style={{ color: C.textSec, fontSize: 13.5, margin: "3px 0 0", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          Valor da venda: <strong style={{ color: C.white }}>{brl(ev.valor)}</strong>
+                          {ev.notaId
+                            ? <Badge tone="green">NF-e emitida</Badge>
+                            : <Badge tone="amber">Sem nota fiscal</Badge>}
+                        </p>
+                      )}
                       {!isNfe && ev.observacao && <p style={{ color: C.textMuted, fontSize: 13, margin: "3px 0 0" }}>{ev.observacao}</p>}
                       {isNfe && ev.statusFiscal === "rejeitada" && ev.motivoRejeicao && (
                         <p style={{ color: C.red, fontSize: 13, margin: "3px 0 0" }}>{ev.motivoRejeicao}</p>
                       )}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      {!isNfe && ev.tipo === "saida" && ev.motivo === MOTIVO_VENDA && !ev.notaId && (
+                        <BtnPrimary
+                          icon={<FileText size={14} />}
+                          disabled={!acharItemDaVenda(ev.mov)}
+                          onClick={() => emitirNotaDaVenda(ev.mov)}
+                        >
+                          Emitir NF-e
+                        </BtnPrimary>
+                      )}
                       <p style={{ color: C.textMuted, fontSize: 16, margin: 0 }}>{new Date(ev.data).toLocaleString("pt-BR")}</p>
                       {isNfe && <span style={{ color: C.textMuted, display: "flex", transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><ChevronDown size={16} /></span>}
                     </div>
@@ -198,6 +237,10 @@ export default function HistoricoPage() {
           </div>
         )}
       </Card>
+
+      {vendaParaNota && itemDaVenda && (
+        <ModalNFeMulti itensIniciais={[itemDaVenda]} vendaOrigem={vendaParaNota} onClose={() => setVendaParaNota(null)} />
+      )}
     </div>
   );
 }

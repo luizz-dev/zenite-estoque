@@ -4,7 +4,7 @@
 // APP CONTEXT — fonte única de estado no cliente.
 // ============================================================================
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Produto, NotaFiscal, Notificacao, Movimentacao, Empresa, Usuario, NovaNotaPayload, ContaFixa, Assinatura, PlanoAssinatura } from "@/lib/types";
+import type { Produto, VariacaoEntrada, NotaFiscal, Notificacao, Movimentacao, Empresa, Usuario, NovaNotaPayload, ContaFixa, Assinatura, PlanoAssinatura } from "@/lib/types";
 import { alertasVencimentoContas, type AlertaVencimento } from "@/lib/utils";
 
 interface AppContextValue {
@@ -27,12 +27,13 @@ interface AppContextValue {
   // próxima busca.
   limparEstado: () => void;
 
-  criarProduto: (dados: Partial<Produto>) => Promise<void>;
-  editarProduto: (id: string, dados: Partial<Produto>) => Promise<void>;
+  // As variações (tamanho/cor + estoque) vão junto: são obrigatórias no cadastro.
+  criarProduto: (dados: Partial<Omit<Produto, "variacoes">> & { variacoes: VariacaoEntrada[] }) => Promise<void>;
+  editarProduto: (id: string, dados: Partial<Omit<Produto, "variacoes">> & { variacoes?: VariacaoEntrada[] }) => Promise<void>;
   excluirProduto: (id: string) => Promise<void>;
 
   emitirNota: (payload: NovaNotaPayload) => Promise<{ ok: boolean; erro?: string }>;
-  registrarMovimentacao: (dados: { produtoId: string; tipo: "entrada" | "saida"; quantidade: number; motivo: string; observacao?: string }) => Promise<{ ok: boolean; erro?: string }>;
+  registrarMovimentacao: (dados: { produtoId: string; tipo: "entrada" | "saida"; quantidade: number; motivo: string; observacao?: string; valor?: number; variacaoId?: string }) => Promise<{ ok: boolean; erro?: string }>;
 
   marcarNotificacaoLida: (id: string) => Promise<void>;
   marcarTodasLidas: () => Promise<void>;
@@ -131,6 +132,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { recarregarTudo(); }, [recarregarTudo]);
 
+  const recarregarProdutos = useCallback(() => {
+    fetchJson<Produto[]>("/api/produtos").then(setProdutos).catch(() => {});
+  }, []);
+
   const limparEstado = useCallback(() => {
     setUsuario(null);
     setEmpresa(null);
@@ -161,11 +166,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const nota = await fetchJson<NotaFiscal>("/api/notas", { method: "POST", body: JSON.stringify(payload) });
       setNotas((ns) => [nota, ...ns]);
-      if (nota.statusFiscal === "autorizada") {
-        setProdutos((ps) => ps.map((p) => {
-          const item = payload.itens.find((i) => i.produtoId === p.id);
-          return item ? { ...p, quantidade: Math.max(0, p.quantidade - item.quantidade) } : p;
-        }));
+      // Nota emitida a partir de uma venda da baixa: o estoque já foi debitado na
+      // baixa, então só vinculamos a nota à movimentação (e só se foi autorizada).
+      if (payload.movimentacaoId) {
+        if (nota.statusFiscal === "autorizada") {
+          setMovimentacoes((ms) => ms.map((m) => (m.id === payload.movimentacaoId ? { ...m, notaId: nota.id } : m)));
+        }
+      } else if (nota.statusFiscal === "autorizada") {
+        // O servidor debitou o estoque da variação (tamanho/cor) vendida: recarrega os produtos.
+        recarregarProdutos();
       }
       fetchJson<Notificacao[]>("/api/notificacoes").then(setNotificacoes);
       return { ok: true };
@@ -178,9 +187,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const mov = await fetchJson<Movimentacao>("/api/movimentacoes", { method: "POST", body: JSON.stringify(dados) });
       setMovimentacoes((ms) => [mov, ...ms]);
-      setProdutos((ps) => ps.map((p) => p.id === dados.produtoId
-        ? { ...p, quantidade: dados.tipo === "entrada" ? p.quantidade + dados.quantidade : Math.max(0, p.quantidade - dados.quantidade) }
-        : p));
+      // O estoque agora é por variação: o servidor é a fonte da verdade, então recarrega os produtos.
+      recarregarProdutos();
+      // Venda pela baixa pode gerar o aviso de inconsistência fiscal (#20).
+      if (dados.motivo === "Venda") fetchJson<Notificacao[]>("/api/notificacoes").then(setNotificacoes).catch(() => {});
       return { ok: true };
     } catch (e) {
       return { ok: false, erro: e instanceof Error ? e.message : "Erro ao registrar movimentação." };

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Filter, Info, Package, BarChart3, AlertTriangle, Trash2, Tag, ArrowUp, FileText, Pencil, ArrowUpDown } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Filter, Info, Package, BarChart3, AlertTriangle, Trash2, Tag, ArrowUp, FileText, Pencil, ArrowUpDown, ChevronDown } from "lucide-react";
 import { C } from "@/lib/constants";
 import { brl, pctMargem, getStatusEstoque } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
@@ -10,7 +10,8 @@ import { Select } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost, BtnIcon } from "@/components/ui/Button";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
-import { ModalNFeMulti } from "@/components/estoque/ModalNFeMulti";
+import { ModalNFeMulti, type ItemInicialNfe } from "@/components/estoque/ModalNFeMulti";
+import { rotuloVariacao } from "@/lib/variacoes";
 import { ModalEditProduto } from "@/components/estoque/ModalEditProduto";
 import { ModalExcluir } from "@/components/estoque/ModalExcluir";
 import { ModalMovimentacao } from "@/components/estoque/ModalMovimentacao";
@@ -35,7 +36,10 @@ export default function EstoquePage() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [produtoAtivo, setProdutoAtivo] = useState<Produto | null>(null);
   const [modal, setModal] = useState<"nfe" | "edit" | "del" | "mov" | null>(null);
-  const [itensNfe, setItensNfe] = useState<Produto[]>([]);
+  const [itensNfe, setItensNfe] = useState<ItemInicialNfe[]>([]);
+  const [buscaNfe, setBuscaNfe] = useState("");
+  const [variacaoAtivaId, setVariacaoAtivaId] = useState("");
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
   const categorias = useMemo(() => ["Todas", ...new Set(produtos.map((p) => p.categoria))], [produtos]);
 
@@ -70,11 +74,27 @@ export default function EstoquePage() {
     return n;
   });
 
-  const abrirNfe = (produtosIniciais: Produto[]) => {
+  const toggleExpandir = (id: string) => setExpandidos((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // A nota é por VARIAÇÃO (tamanho/cor): itens = linhas da nota; busca = texto já digitado na busca do modal.
+  const abrirNfe = (itens: ItemInicialNfe[], busca = "") => {
     if (!empresa?.configurada) { router.push("/perfil/dados-fiscais?motivo=nfe"); return; }
-    setItensNfe(produtosIniciais);
+    setItensNfe(itens);
+    setBuscaNfe(busca);
     setModal("nfe");
   };
+
+  // Botão NF-e da linha do produto: se só uma variação tem estoque, ela já entra na nota;
+  // se houver várias, o modal abre com a busca preenchida para escolher tamanho/cor.
+  const abrirNfeDoProduto = (p: Produto) => {
+    const comEstoque = (p.variacoes ?? []).filter((v) => v.quantidade > 0);
+    if (comEstoque.length === 1) abrirNfe([{ produto: p, variacao: comEstoque[0] }]);
+    else abrirNfe([], p.nome);
+  };
+
+  // Botão "Emitir NF-e (n itens)": produtos marcados entram com todas as variações que têm estoque.
+  const abrirNfeSelecionados = () =>
+    abrirNfe(produtos.filter((p) => selecionados.has(p.id)).flatMap((p) => (p.variacoes ?? []).filter((v) => v.quantidade > 0).map((v) => ({ produto: p, variacao: v }))));
 
   const totalUn = produtos.reduce((a, p) => a + p.quantidade, 0);
   const valorTotal = produtos.reduce((a, p) => a + p.precoVenda * p.quantidade, 0);
@@ -129,8 +149,8 @@ export default function EstoquePage() {
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {selecionados.size > 0 && <Badge tone="purple">{selecionados.size} selecionado{selecionados.size > 1 ? "s" : ""}</Badge>}
-              <BtnGhost icon={<ArrowUpDown size={14} />} onClick={() => { setProdutoAtivo(null); setModal("mov"); }}>Movimentar Estoque</BtnGhost>
-              <BtnPrimary icon={<FileText size={15} />} onClick={() => abrirNfe(produtos.filter((p) => selecionados.has(p.id) && p.quantidade > 0))}>
+              <BtnGhost icon={<ArrowUpDown size={14} />} onClick={() => { setProdutoAtivo(null); setVariacaoAtivaId(""); setModal("mov"); }}>Movimentar Estoque</BtnGhost>
+              <BtnPrimary icon={<FileText size={15} />} onClick={abrirNfeSelecionados}>
                 {selecionados.size > 0 ? `Emitir NF-e (${selecionados.size} itens)` : "Emitir Nota Fiscal"}
               </BtnPrimary>
             </div>
@@ -148,7 +168,7 @@ export default function EstoquePage() {
             })}
           </div>
           <p style={{ color: C.textMuted, fontSize: 14.5, margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
-            <Info size={15} /> Marque várias peças (mesmo de categorias diferentes) e clique em &quot;Emitir NF-e&quot; para gerar uma única nota com todos os itens.
+            <Info size={15} /> Marque várias peças e clique em &quot;Emitir NF-e&quot; para gerar uma única nota — produtos com várias variações entram com todas elas (remova as que não for vender). Clique na seta de uma linha para ver o estoque de cada tamanho/cor.
           </p>
         </div>
         <div style={{ height: 1, background: C.border, margin: "14px 0 0" }} />
@@ -182,17 +202,26 @@ export default function EstoquePage() {
                 const qtdPct = Math.min(100, (p.quantidade / 80) * 100);
                 const qtdColor = p.quantidade === 0 || p.quantidade <= 3 ? C.red : p.quantidade <= 8 ? C.amber : "#E2E8F5";
                 const barColor = p.quantidade === 0 ? C.red : p.quantidade <= 8 ? C.amber : C.green;
+                const variacoes = p.variacoes ?? [];
+                const aberto = expandidos.has(p.id);
                 return (
-                  <tr key={p.id} style={{ borderTop: `1px solid ${C.border}`, background: isChecked ? "rgba(72,55,232,0.08)" : "transparent" }}>
+                  <Fragment key={p.id}>
+                  <tr style={{ borderTop: `1px solid ${C.border}`, background: isChecked ? "rgba(72,55,232,0.08)" : "transparent" }}>
                     <td style={{ padding: "11px 10px 11px 16px" }}>
                       <input type="checkbox" checked={isChecked} onChange={() => toggleSel(p.id)} style={{ accentColor: C.purple1 }} />
                     </td>
                     <td style={{ padding: "11px 10px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandir(p.id)}
+                          aria-label={aberto ? "Recolher variações" : "Ver variações"}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, display: "flex", padding: 2, transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+                        ><ChevronDown size={16} /></button>
                         <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(72,55,232,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: C.purpleText, flexShrink: 0 }}><Tag size={16} /></div>
                         <div>
                           <p style={{ color: C.white, fontWeight: 500, margin: 0, fontSize: 16 }}>{p.nome}</p>
-                          <p style={{ color: C.textMuted, fontSize: 14, margin: "1px 0 0" }}>SKU: {p.sku} · NCM {p.ncm}</p>
+                          <p style={{ color: C.textMuted, fontSize: 14, margin: "1px 0 0" }}>SKU: {p.sku} · NCM {p.ncm} · {variacoes.length} variaç{variacoes.length === 1 ? "ão" : "ões"}</p>
                         </div>
                       </div>
                     </td>
@@ -214,13 +243,38 @@ export default function EstoquePage() {
                     <td style={{ padding: "11px 10px" }}><Badge tone={TONE_STATUS[status]}>{LABEL_STATUS[status]}</Badge></td>
                     <td style={{ padding: "11px 16px 11px 10px" }}>
                       <div style={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-                        <BtnIcon tone="cyan" onClick={() => { setProdutoAtivo(p); setModal("mov"); }}><ArrowUpDown size={16} /></BtnIcon>
-                        <BtnIcon tone="cyan" onClick={() => abrirNfe([p])}><FileText size={16} /></BtnIcon>
+                        <BtnIcon tone="cyan" onClick={() => { setProdutoAtivo(p); setVariacaoAtivaId(""); setModal("mov"); }}><ArrowUpDown size={16} /></BtnIcon>
+                        <BtnIcon tone="cyan" onClick={() => abrirNfeDoProduto(p)}><FileText size={16} /></BtnIcon>
                         <BtnIcon onClick={() => { setProdutoAtivo(p); setModal("edit"); }}><Pencil size={16} /></BtnIcon>
                         <BtnIcon tone="danger" onClick={() => { setProdutoAtivo(p); setModal("del"); }}><Trash2 size={16} /></BtnIcon>
                       </div>
                     </td>
                   </tr>
+                  {aberto && (
+                    <tr>
+                      <td colSpan={8} style={{ padding: "0 16px 14px 56px", background: "rgba(255,255,255,0.015)" }}>
+                        <p style={{ color: C.textMuted, fontSize: 13, margin: "10px 0 6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Estoque por variação</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {variacoes.map((v) => {
+                            const st = getStatusEstoque(v.quantidade);
+                            return (
+                              <div key={v.id} style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 90px 90px auto", gap: 10, alignItems: "center", padding: "8px 12px", borderRadius: 8, background: C.cardInner }}>
+                                <span style={{ color: C.white, fontSize: 15 }}>{rotuloVariacao(v) || "Única (sem tamanho/cor)"}</span>
+                                <span style={{ color: C.textMuted, fontSize: 13.5 }}>SKU {v.sku}</span>
+                                <span style={{ color: v.quantidade <= 3 ? C.red : v.quantidade <= 8 ? C.amber : "#E2E8F5", fontWeight: 500 }}>{v.quantidade} un.</span>
+                                <Badge tone={TONE_STATUS[st]}>{LABEL_STATUS[st]}</Badge>
+                                <div style={{ display: "flex", gap: 2 }}>
+                                  <BtnIcon tone="cyan" onClick={() => { setProdutoAtivo(p); setVariacaoAtivaId(v.id); setModal("mov"); }}><ArrowUpDown size={15} /></BtnIcon>
+                                  <BtnIcon tone="cyan" onClick={() => { if (v.quantidade > 0) abrirNfe([{ produto: p, variacao: v }]); }}><FileText size={15} /></BtnIcon>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -242,10 +296,10 @@ export default function EstoquePage() {
         </div>
       </Card>
 
-      {modal === "nfe" && <ModalNFeMulti itensIniciais={itensNfe} onClose={() => { setModal(null); setSelecionados(new Set()); }} />}
+      {modal === "nfe" && <ModalNFeMulti itensIniciais={itensNfe} buscaInicial={buscaNfe} onClose={() => { setModal(null); setSelecionados(new Set()); }} />}
       {modal === "edit" && produtoAtivo && <ModalEditProduto produto={produtoAtivo} onClose={() => setModal(null)} />}
       {modal === "del" && produtoAtivo && <ModalExcluir produto={produtoAtivo} onClose={() => setModal(null)} />}
-      {modal === "mov" && <ModalMovimentacao produtoInicial={produtoAtivo} onClose={() => setModal(null)} />}
+      {modal === "mov" && <ModalMovimentacao produtoInicial={produtoAtivo} variacaoInicialId={variacaoAtivaId} onClose={() => setModal(null)} />}
     </div>
   );
 }

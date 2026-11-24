@@ -11,11 +11,13 @@ import { Input, FieldLabel } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost } from "@/components/ui/Button";
 import { Topbar } from "@/components/layout/Topbar";
 import { useApp } from "@/context/AppContext";
+import { EditorVariacoes, linhaVazia, linhasParaEntrada, validarLinhas, type LinhaVariacao } from "@/components/estoque/EditorVariacoes";
+import { rotuloVariacao } from "@/lib/variacoes";
 
-const FORM_VAZIO = { nome: "", sku: "", categoria: "", unidade: "UN", quantidade: "", quantidadeMinima: "8", precoCusto: "", precoVenda: "", fornecedor: "", ncm: "", descricao: "" };
+const FORM_VAZIO = { nome: "", sku: "", categoria: "", unidade: "UN", quantidadeMinima: "8", precoCusto: "", precoVenda: "", fornecedor: "", ncm: "", descricao: "" };
 const STEPS = ["Identificação", "Precificação", "Detalhes", "Revisão"];
-const STEP_TITULOS = ["Identificação do Produto", "Precificação", "Detalhes e Informações Técnicas", "Revisão Final"];
-const STEP_SUBS = ["Nome, SKU, categoria e unidade de medida", "Preços, quantidade e cálculo de margem", "Fornecedor, NCM e descrição técnica do produto", "Confira todos os dados antes de cadastrar"];
+const STEP_TITULOS = ["Identificação do Produto", "Precificação e Variações", "Detalhes e Informações Técnicas", "Revisão Final"];
+const STEP_SUBS = ["Nome, SKU, categoria e unidade de medida", "Preços, variações (tamanho/cor) com estoque e cálculo de margem", "Fornecedor, NCM e descrição técnica do produto", "Confira todos os dados antes de cadastrar"];
 const STEP_DICAS = [
   "Use nomes descritivos e padronizados — facilita a busca no estoque e a identificação na NF-e.",
   "Margens abaixo de 25% podem comprometer a saúde financeira do negócio.",
@@ -51,6 +53,8 @@ export default function CadastrarItemPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(FORM_VAZIO);
+  // Variações (tamanho + cor + estoque): obrigatórias — todo produto tem ao menos uma.
+  const [linhas, setLinhas] = useState<LinhaVariacao[]>([linhaVazia()]);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState(false);
@@ -90,7 +94,12 @@ export default function CadastrarItemPage() {
 
   const margem = form.precoCusto && form.precoVenda ? pctMargem(+form.precoCusto, +form.precoVenda) : null;
   const lucroUn = form.precoCusto && form.precoVenda ? brl(+form.precoVenda - +form.precoCusto) : null;
-  const valorEstoque = form.precoVenda && form.quantidade ? brl(+form.precoVenda * +form.quantidade) : null;
+  const totalQtd = linhas.reduce((a, l) => a + (Number(l.quantidade) || 0), 0);
+  const valorEstoque = form.precoVenda && totalQtd ? brl(+form.precoVenda * totalQtd) : null;
+  const coresSugeridas = useMemo(
+    () => Array.from(new Set(produtos.flatMap((p) => (p.variacoes ?? []).map((v) => v.cor)).filter((c) => c && c !== "Única"))).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [produtos]
+  );
 
   const validarEtapa = (s: number): string | null => {
     if (s === 1) {
@@ -99,7 +108,8 @@ export default function CadastrarItemPage() {
       if (!form.categoria.trim()) return "Informe a categoria.";
     }
     if (s === 2) {
-      if (!form.quantidade) return "Informe a quantidade inicial.";
+      const erroVariacoes = validarLinhas(linhas);
+      if (erroVariacoes) return erroVariacoes;
       if (!form.precoCusto) return "Informe o preço de custo.";
       if (!form.precoVenda) return "Informe o preço de venda.";
     }
@@ -122,7 +132,7 @@ export default function CadastrarItemPage() {
     try {
       await criarProduto({
         nome: form.nome, sku: form.sku, categoria: form.categoria || "Outros", unidade: form.unidade,
-        quantidade: Number(form.quantidade) || 0, quantidadeMinima: Number(form.quantidadeMinima) || 8,
+        variacoes: linhasParaEntrada(linhas), quantidadeMinima: Number(form.quantidadeMinima) || 8,
         precoCusto: Number(form.precoCusto) || 0, precoVenda: Number(form.precoVenda) || 0,
         fornecedor: form.fornecedor, ncm: form.ncm, descricao: form.descricao,
       });
@@ -148,7 +158,7 @@ export default function CadastrarItemPage() {
               <strong style={{ color: C.white }}>{form.nome}</strong> foi adicionado ao estoque com o SKU <strong style={{ color: C.white }}>{form.sku}</strong> e já está disponível para emissão de NF-e.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <BtnGhost onClick={() => { setForm(FORM_VAZIO); setStep(1); setSucesso(false); }}>Cadastrar outro produto</BtnGhost>
+              <BtnGhost onClick={() => { setForm(FORM_VAZIO); setLinhas([linhaVazia()]); setStep(1); setSucesso(false); }}>Cadastrar outro produto</BtnGhost>
               <BtnPrimary icon={<Eye size={15} />} onClick={() => router.push("/estoque")}>Ver no Estoque</BtnPrimary>
             </div>
           </Card>
@@ -250,9 +260,9 @@ export default function CadastrarItemPage() {
 
             {step === 2 && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <FieldLabel>Quantidade Inicial <span style={{ color: C.red }}>*</span></FieldLabel>
-                  <Input type="number" value={form.quantidade} onChange={(e) => set("quantidade", e.target.value)} placeholder="0" style={inputStyle} />
+                <div style={{ gridColumn: "1/-1" }}>
+                  <FieldLabel>Variações e estoque inicial <span style={{ color: C.red }}>*</span></FieldLabel>
+                  <EditorVariacoes linhas={linhas} onChange={setLinhas} coresSugeridas={coresSugeridas} />
                 </div>
                 <div>
                   <FieldLabel>Qtd. Mínima (Alerta)</FieldLabel>
@@ -274,7 +284,7 @@ export default function CadastrarItemPage() {
                   </div>
                 </div>
 
-                {(form.precoCusto || form.precoVenda || form.quantidade) && (
+                {(form.precoCusto || form.precoVenda || totalQtd > 0) && (
                   <div style={{ gridColumn: "1/-1", border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", borderRadius: 12, padding: 16, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
                     {[
                       ["Margem Bruta", margem ? `${margem}%` : "—", margem ? (+margem >= 40 ? C.green : +margem >= 25 ? C.amber : C.red) : C.textMuted],
@@ -333,12 +343,24 @@ export default function CadastrarItemPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     {[
                       ["Nome", form.nome || "—"], ["SKU", form.sku || "—"], ["Categoria", form.categoria || "—"], ["Unidade", form.unidade || "UN"],
-                      ["Qtd. Inicial", (form.quantidade || "0") + " un."], ["Qtd. Mínima", (form.quantidadeMinima || "8") + " un."],
+                      ["Estoque Inicial (total)", totalQtd + " un."], ["Qtd. Mínima", (form.quantidadeMinima || "8") + " un."],
                       ["Fornecedor", form.fornecedor || "—"], ["NCM", form.ncm || "—"],
                       ["Preço Custo", form.precoCusto ? brl(+form.precoCusto) : "—"], ["Preço Venda", form.precoVenda ? brl(+form.precoVenda) : "—"],
                       margem ? ["Margem", `${margem}%`] : null, lucroUn ? ["Lucro/Un.", lucroUn] : null,
                     ].filter((x): x is [string, string] => x !== null).map(([k, v]) => (
                       <div key={k}><p style={{ color: C.textMuted, fontSize: 14, margin: 0 }}>{k}</p><p style={{ color: C.white, fontSize: 14, fontWeight: 500, margin: "2px 0 0" }}>{v}</p></div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", padding: "12px 14px" }}>
+                  <p style={{ color: C.textMuted, fontSize: 14, margin: "0 0 8px" }}>Variações ({linhas.length})</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {linhas.map((l, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 14.5 }}>
+                        <span style={{ color: C.white }}>{rotuloVariacao({ tamanho: l.tamanho, cor: l.cor.trim() || "Única" }) || "Única (sem tamanho/cor)"}</span>
+                        <span style={{ color: C.textSec }}>{l.quantidade || 0} un.</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -389,7 +411,7 @@ export default function CadastrarItemPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.textMuted, fontSize: 14 }}>Preço de Venda</span><span style={{ color: C.white, fontSize: 14.5, fontWeight: 500 }}>{form.precoVenda ? brl(+form.precoVenda) : "—"}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.textMuted, fontSize: 14 }}>Qtd. Inicial</span><span style={{ color: C.textSec, fontSize: 14.5, fontWeight: 500 }}>{form.quantidade || "0"} un.</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.textMuted, fontSize: 14 }}>Estoque (total)</span><span style={{ color: C.textSec, fontSize: 14.5, fontWeight: 500 }}>{totalQtd} un. · {linhas.length} variaç{linhas.length === 1 ? "ão" : "ões"}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.textMuted, fontSize: 14 }}>Fornecedor</span><span style={{ color: C.textSec, fontSize: 14.5, fontWeight: 500 }}>{form.fornecedor || "—"}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.textMuted, fontSize: 14 }}>NCM</span><span style={{ color: C.textSec, fontSize: 14.5, fontWeight: 500 }}>{form.ncm || "—"}</span></div>
               {margem && (

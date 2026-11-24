@@ -7,7 +7,7 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
-  celular?: string | null;
+  celular: string;
   cpfCnpj?: string | null;
   cep?: string | null;
   endereco?: string | null;
@@ -27,8 +27,25 @@ export interface Empresa {
   numero: string;
   bairro: string;
   cidade: string;
-  cMunicipio: string;
   certificadoNome: string;
+}
+
+// Variação de um produto (tamanho + cor), cada uma com seu estoque.
+export interface VariacaoProduto {
+  id: string;
+  produtoId: string;
+  tamanho: string;
+  cor: string;
+  sku: string;
+  quantidade: number;
+}
+
+// Linha de variação enviada ao criar/editar um produto (id só existe em variações já salvas).
+export interface VariacaoEntrada {
+  id?: string;
+  tamanho: string;
+  cor: string;
+  quantidade: number;
 }
 
 export interface Produto {
@@ -37,13 +54,14 @@ export interface Produto {
   sku: string;
   categoria: string;
   unidade: string;
-  quantidade: number;
+  quantidade: number; // = soma das variações (mantida pelo servidor)
   quantidadeMinima: number;
   precoCusto: number;
   precoVenda: number;
   fornecedor?: string | null;
   ncm: string;
   descricao?: string | null;
+  variacoes: VariacaoProduto[]; // sempre ao menos uma
 }
 
 export type StatusEstoque = "ativo" | "alerta" | "critico" | "esgotado";
@@ -68,6 +86,7 @@ export interface EnderecoEntrega {
 
 export interface ItemNotaFiscal {
   produtoId: string;
+  variacaoId?: string | null; // variação vendida (obrigatória em notas novas)
   nome: string;
   sku: string;
   ncm: string;
@@ -92,9 +111,6 @@ export interface NotaFiscal {
   valorTotal: number;
   statusFiscal: StatusFiscal;
   motivoRejeicao?: string | null;
-  chaveAcesso?: string | null;
-  protocolo?: string | null;
-  xmlAutorizado?: string | null;
   emitidaEm: string;
   itens: ItemNotaFiscal[];
 }
@@ -106,6 +122,10 @@ export interface NovaNotaPayload {
   csosn: string;
   formaPagamento: string;
   itens: ItemNotaFiscal[];
+  // NOVO: quando a nota é emitida a partir de uma venda registrada na baixa,
+  // informe o id da movimentação. Nesse caso o estoque NÃO é debitado de novo
+  // (já foi debitado na baixa) e a venda fica vinculada à nota.
+  movimentacaoId?: string;
 }
 
 export type TipoNotificacao = "estoque" | "fiscal" | "mei" | "sistema";
@@ -129,6 +149,11 @@ export interface Movimentacao {
   motivo?: string | null;
   observacao?: string | null;
   data: string;
+  // NOVO (baixa com motivo "Venda")
+  valor?: number | null;      // valor total da venda (R$)
+  produtoId?: string | null;  // produto movimentado
+  notaId?: string | null;     // NF-e emitida para esta venda (null = sem nota ainda)
+  variacaoId?: string | null; // variação (tamanho/cor) movimentada
 }
 
 export type TipoConta = "fixa" | "eventual";

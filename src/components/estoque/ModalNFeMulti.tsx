@@ -8,21 +8,37 @@ import { getCfop, brl } from "@/lib/utils";
 import { Input, Select, FieldLabel } from "@/components/ui/Input";
 import { BtnPrimary, BtnGhost, BtnIcon } from "@/components/ui/Button";
 import { useApp } from "@/context/AppContext";
-import type { Produto, Destinatario, EnderecoEntrega } from "@/lib/types";
+import { nomeComVariacao, rotuloVariacao } from "@/lib/variacoes";
+import type { Produto, VariacaoProduto, Destinatario, EnderecoEntrega, Movimentacao } from "@/lib/types";
 
+// Cada linha da nota é uma VARIAÇÃO (tamanho/cor) de um produto.
 interface ItemCarrinho {
-  produtoId: string; nome: string; sku: string; ncm: string; estoqueMax: number;
+  produtoId: string; variacaoId: string; nome: string; sku: string; ncm: string; estoqueMax: number;
   qtd: number; valorUnit: number; cfop: string | null;
 }
 
-export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produto[]; onClose: () => void }) {
+export interface ItemInicialNfe { produto: Produto; variacao: VariacaoProduto }
+
+// vendaOrigem: quando informado, a nota é emitida para uma VENDA registrada na baixa.
+// Nesse modo o item é travado (produto, quantidade e valor vêm da venda) e o
+// estoque não é debitado de novo — ele já foi debitado quando a baixa foi feita.
+export function ModalNFeMulti({ itensIniciais, vendaOrigem, buscaInicial, onClose }: { itensIniciais: ItemInicialNfe[]; vendaOrigem?: Movimentacao; buscaInicial?: string; onClose: () => void }) {
   const { produtos, empresa, emitirNota } = useApp();
   const ufEmpresa = empresa?.uf || "";
 
+  const travado = !!vendaOrigem;
   const [itens, setItens] = useState<ItemCarrinho[]>(() =>
-    itensIniciais.map((p) => ({ produtoId: p.id, nome: p.nome, sku: p.sku, ncm: p.ncm, estoqueMax: p.quantidade, qtd: 1, valorUnit: p.precoVenda, cfop: null }))
+    itensIniciais.map(({ produto: p, variacao: v }) =>
+      vendaOrigem
+        ? {
+            produtoId: p.id, variacaoId: v.id, nome: nomeComVariacao(p.nome, v), sku: v.sku, ncm: p.ncm,
+            estoqueMax: vendaOrigem.quantidade, qtd: vendaOrigem.quantidade,
+            valorUnit: (vendaOrigem.valor ?? p.precoVenda * vendaOrigem.quantidade) / vendaOrigem.quantidade, cfop: null,
+          }
+        : { produtoId: p.id, variacaoId: v.id, nome: nomeComVariacao(p.nome, v), sku: v.sku, ncm: p.ncm, estoqueMax: v.quantidade, qtd: 1, valorUnit: p.precoVenda, cfop: null }
+    )
   );
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(buscaInicial ?? "");
   const [destinatario, setDestinatario] = useState<Destinatario>({ tipo: "PF", doc: "", nome: "", ie: "", uf: ufEmpresa });
   const [entregaDiferente, setEntregaDiferente] = useState(false);
   const [endereco, setEndereco] = useState<EnderecoEntrega>({ logradouro: "", numero: "", bairro: "", cidade: "", uf: ufEmpresa, cep: "" });
@@ -33,19 +49,25 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
 
   const cfopAuto = getCfop(destinatario.uf, ufEmpresa);
 
+  // Sugestões = variações com estoque (um produto aparece uma vez por tamanho/cor).
   const sugestoes = useMemo(() => {
     if (!busca.trim()) return [];
     const q = busca.toLowerCase();
-    const idsNoCarrinho = new Set(itens.map((i) => i.produtoId));
-    return produtos.filter((p) => p.quantidade > 0 && !idsNoCarrinho.has(p.id) && (p.nome.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))).slice(0, 5);
+    const idsNoCarrinho = new Set(itens.map((i) => i.variacaoId));
+    return produtos
+      .flatMap((p) => (p.variacoes ?? []).map((v) => ({ produto: p, variacao: v })))
+      .filter(({ produto: p, variacao: v }) =>
+        v.quantidade > 0 && !idsNoCarrinho.has(v.id) &&
+        (`${p.nome} ${rotuloVariacao(v)}`.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || v.sku.toLowerCase().includes(q)))
+      .slice(0, 8);
   }, [busca, itens, produtos]);
 
-  const addItem = (p: Produto) => {
-    setItens((prev) => [...prev, { produtoId: p.id, nome: p.nome, sku: p.sku, ncm: p.ncm, estoqueMax: p.quantidade, qtd: 1, valorUnit: p.precoVenda, cfop: null }]);
+  const addItem = (p: Produto, v: VariacaoProduto) => {
+    setItens((prev) => [...prev, { produtoId: p.id, variacaoId: v.id, nome: nomeComVariacao(p.nome, v), sku: v.sku, ncm: p.ncm, estoqueMax: v.quantidade, qtd: 1, valorUnit: p.precoVenda, cfop: null }]);
     setBusca("");
   };
-  const removeItem = (id: string) => setItens((prev) => prev.filter((i) => i.produtoId !== id));
-  const setQtd = (id: string, qtd: number) => setItens((prev) => prev.map((i) => (i.produtoId === id ? { ...i, qtd: Math.max(1, Math.min(qtd || 1, i.estoqueMax)) } : i)));
+  const removeItem = (variacaoId: string) => setItens((prev) => prev.filter((i) => i.variacaoId !== variacaoId));
+  const setQtd = (variacaoId: string, qtd: number) => setItens((prev) => prev.map((i) => (i.variacaoId === variacaoId ? { ...i, qtd: Math.max(1, Math.min(qtd || 1, i.estoqueMax)) } : i)));
 
   const total = itens.reduce((a, i) => a + i.qtd * i.valorUnit, 0);
   const csosnInfo = CSOSN_OPTS.find((c) => c.v === csosn);
@@ -60,7 +82,8 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
     setEnviando(true);
     const resultado = await emitirNota({
       destinatario, endereco: entregaDiferente ? endereco : null, csosn, formaPagamento,
-      itens: itens.map((i) => ({ produtoId: i.produtoId, nome: i.nome, sku: i.sku, ncm: i.ncm, cfop: i.cfop || cfopAuto, quantidade: i.qtd, valorUnitario: i.valorUnit })),
+      itens: itens.map((i) => ({ produtoId: i.produtoId, variacaoId: i.variacaoId, nome: i.nome, sku: i.sku, ncm: i.ncm, cfop: i.cfop || cfopAuto, quantidade: i.qtd, valorUnitario: i.valorUnit })),
+      ...(vendaOrigem ? { movimentacaoId: vendaOrigem.id } : {}),
     });
     setEnviando(false);
     if (resultado.ok) onClose();
@@ -77,7 +100,7 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
             </div>
             <div>
               <p style={{ color: C.white, fontSize: 15, fontWeight: 700, margin: 0 }}>Emitir Nota Fiscal</p>
-              <p style={{ color: C.textMuted, fontSize: 13.5, margin: 0 }}>Aceita múltiplos produtos, de categorias diferentes</p>
+              <p style={{ color: C.textMuted, fontSize: 13.5, margin: 0 }}>{travado ? "Nota da venda registrada na baixa — o estoque não será alterado" : "Aceita múltiplos produtos, de categorias diferentes"}</p>
             </div>
           </div>
           <BtnIcon onClick={onClose}><X size={16} /></BtnIcon>
@@ -87,23 +110,23 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
           {/* Itens */}
           <div>
             <FieldLabel>Produtos desta nota <span style={{ color: C.red }}>*</span></FieldLabel>
-            <div style={{ position: "relative", marginBottom: 10 }}>
+            {!travado && <div style={{ position: "relative", marginBottom: 10 }}>
               <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.textMuted, display: "flex" }}><Search size={15} /></span>
               <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto por nome ou SKU..." style={{ paddingLeft: 32 }} />
               {sugestoes.length > 0 && (
                 <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 10, overflow: "hidden" }}>
-                  {sugestoes.map((p) => (
-                    <div key={p.id} onClick={() => addItem(p)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", cursor: "pointer" }}>
+                  {sugestoes.map(({ produto: p, variacao: v }) => (
+                    <div key={v.id} onClick={() => addItem(p, v)} style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", cursor: "pointer" }}>
                       <div>
-                        <p style={{ color: C.white, fontSize: 14.5, fontWeight: 500, margin: 0 }}>{p.nome}</p>
-                        <p style={{ color: C.textMuted, fontSize: 13, margin: "1px 0 0" }}>SKU {p.sku} · {p.quantidade} un. · NCM {p.ncm}</p>
+                        <p style={{ color: C.white, fontSize: 14.5, fontWeight: 500, margin: 0 }}>{nomeComVariacao(p.nome, v)}</p>
+                        <p style={{ color: C.textMuted, fontSize: 13, margin: "1px 0 0" }}>SKU {v.sku} · {v.quantidade} un. · NCM {p.ncm}</p>
                       </div>
                       <span style={{ color: C.purpleText, display: "flex" }}><Plus size={15} /></span>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </div>}
 
             {itens.length === 0 ? (
               <div style={{ border: `1px dashed ${C.border}`, borderRadius: 12, padding: 22, textAlign: "center", color: C.textMuted, fontSize: 14.5 }}>
@@ -112,16 +135,16 @@ export function ModalNFeMulti({ itensIniciais, onClose }: { itensIniciais: Produ
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {itens.map((i) => (
-                  <div key={i.produtoId} style={{ display: "grid", gridTemplateColumns: "1.6fr 60px 90px 90px 32px", gap: 8, alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px" }}>
+                  <div key={i.variacaoId} style={{ display: "grid", gridTemplateColumns: "1.6fr 60px 90px 90px 32px", gap: 8, alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 10, padding: "9px 10px" }}>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ color: C.white, fontSize: 14.5, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i.nome}</p>
                       <p style={{ color: C.textMuted, fontSize: 13, margin: "1px 0 0" }}>SKU {i.sku} · NCM {i.ncm}</p>
                     </div>
-                    <input type="number" min={1} max={i.estoqueMax} value={i.qtd} onChange={(e) => setQtd(i.produtoId, +e.target.value)}
+                    <input type="number" min={1} max={i.estoqueMax} value={i.qtd} readOnly={travado} onChange={(e) => setQtd(i.variacaoId, +e.target.value)}
                       style={{ background: C.cardInner, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 8px", fontSize: 14.5, color: C.white, textAlign: "center" }} />
                     <div style={{ fontSize: 14, color: C.textSec, textAlign: "right" }}>{brl(i.valorUnit)}</div>
                     <div style={{ fontSize: 14, color: C.white, fontWeight: 600, textAlign: "right" }}>{brl(i.qtd * i.valorUnit)}</div>
-                    <BtnIcon tone="danger" onClick={() => removeItem(i.produtoId)}><Trash2 size={13} /></BtnIcon>
+                    {travado ? <span /> : <BtnIcon tone="danger" onClick={() => removeItem(i.variacaoId)}><Trash2 size={13} /></BtnIcon>}
                   </div>
                 ))}
               </div>

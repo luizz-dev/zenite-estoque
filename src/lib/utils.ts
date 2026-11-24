@@ -13,6 +13,17 @@ export const pctMargem = (custo: number, preco: number): string =>
 export const pctVariacao = (atual: number, anterior: number): string =>
   anterior > 0 ? (((atual - anterior) / anterior) * 100).toFixed(1).replace(".", ",") : "0,0";
 
+/** Variação percentual como NÚMERO (para comparar sinais; pctVariacao devolve texto formatado). */
+export const variacaoNumerica = (atual: number, anterior: number): number =>
+  anterior > 0 ? ((atual - anterior) / anterior) * 100 : 0;
+
+/** Motivo da baixa que conta como venda (e entra no faturamento). */
+export const MOTIVO_VENDA = "Venda";
+
+/** Baixa de estoque com motivo "Venda" que ainda NÃO tem NF-e emitida. */
+export const ehVendaSemNota = (m: Movimentacao): boolean =>
+  m.tipo === "saida" && m.motivo === MOTIVO_VENDA && !m.notaId;
+
 /** Classifica o status do estoque de um produto a partir da quantidade. */
 export const getStatusEstoque = (qtd: number): StatusEstoque =>
   qtd === 0 ? "esgotado" : qtd <= 3 ? "critico" : qtd <= 8 ? "alerta" : "ativo";
@@ -54,7 +65,8 @@ export const calcularLucroMes = (
   notas: NotaFiscal[],
   produtos: Produto[],
   contas: ContaFixa[],
-  considerarContas: boolean
+  considerarContas: boolean,
+  movimentacoes: Movimentacao[] = []
 ): { lucroBruto: number; totalContas: number; lucroLiquido: number } => {
   const mapaCusto = new Map(produtos.map((p) => [p.id, p.precoCusto]));
   let lucroBruto = 0;
@@ -63,6 +75,15 @@ export const calcularLucroMes = (
       const custo = mapaCusto.get(item.produtoId) ?? 0;
       lucroBruto += (item.valorUnitario - custo) * item.quantidade;
     }
+  }
+  // Vendas registradas na baixa que ainda não têm nota (valor − custo × qtd).
+  const agora = new Date();
+  for (const mov of movimentacoes) {
+    if (!ehVendaSemNota(mov)) continue;
+    const d = new Date(mov.data);
+    if (d.getMonth() !== agora.getMonth() || d.getFullYear() !== agora.getFullYear()) continue;
+    const custo = (mov.produtoId ? mapaCusto.get(mov.produtoId) : 0) ?? 0;
+    lucroBruto += (mov.valor ?? 0) - custo * mov.quantidade;
   }
   const totalContas = somaContasFixas(contas);
   return { lucroBruto, totalContas, lucroLiquido: lucroBruto - totalContas };
@@ -97,6 +118,7 @@ export const tendenciaOperacional = (notas: NotaFiscal[], movimentacoes: Movimen
 
   for (const mov of movimentacoes) {
     if (mov.tipo !== "saida") continue;
+    if (mov.notaId) continue; // venda já vinculada a uma NF-e: as unidades já entram pelos itens da nota
     const d = new Date(mov.data);
     const alvo = porChave.get(`${d.getFullYear()}-${d.getMonth()}`);
     if (alvo) alvo.saidas += mov.quantidade;

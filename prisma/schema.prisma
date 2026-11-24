@@ -24,7 +24,6 @@ model Usuario {
   googleId  String? @unique
   criadoEm     DateTime @default(now())
 
-
   empresa       Empresa?
   assinatura    Assinatura?
   produtos      Produto[]
@@ -32,6 +31,8 @@ model Usuario {
   contasFixas   ContaFixa[]
   movimentacoes Movimentacao[]
   notificacoes  Notificacao[]
+  variacoes     VariacaoProduto[]
+  avisoFiscal   AvisoFiscal?
 
   @@map("usuarios")
 }
@@ -75,7 +76,11 @@ model Produto {
   criadoEm         DateTime @default(now())
   atualizadoEm     DateTime @updatedAt
 
-  itensNota ItemNotaFiscal[]
+  itensNota     ItemNotaFiscal[]
+  movimentacoes Movimentacao[]
+  // Variações (tamanho + cor). Todo produto tem ao menos uma; o estoque real
+  // fica nelas e Produto.quantidade é a SOMA (mantida pelo servidor).
+  variacoes     VariacaoProduto[]
 
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -106,7 +111,8 @@ model NotaFiscal {
   xmlAutorizado    String?  @db.Text
   emitidaEm        DateTime @default(now())
 
-  itens ItemNotaFiscal[]
+  itens         ItemNotaFiscal[]
+  movimentacoes Movimentacao[] // vendas (baixa) que originaram esta nota
 
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -164,6 +170,10 @@ model ItemNotaFiscal {
   quantidade    Int
   valorUnitario Float
 
+  // NOVO: variação vendida (null em notas antigas)
+  variacaoId String?
+  variacao   VariacaoProduto? @relation(fields: [variacaoId], references: [id], onDelete: SetNull)
+
   @@map("itens_nota_fiscal")
 }
 
@@ -176,10 +186,26 @@ model Movimentacao {
   observacao String?
   data       DateTime @default(now())
 
+  // NOVO — usados na baixa com motivo "Venda":
+  // valor     = valor total da venda em R$ (null nas demais movimentações)
+  // notaId    = NF-e emitida para esta venda (null = venda ainda sem nota)
+  // produtoId = produto movimentado (o campo "item" continua guardando o nome)
+  valor     Float?
+  produtoId String?
+  produto   Produto?    @relation(fields: [produtoId], references: [id], onDelete: SetNull)
+  notaId    String?
+  nota      NotaFiscal? @relation(fields: [notaId], references: [id], onDelete: SetNull)
+  // NOVO: variação (tamanho/cor) movimentada
+  variacaoId String?
+  variacao   VariacaoProduto? @relation(fields: [variacaoId], references: [id], onDelete: SetNull)
+
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
+  @@index([produtoId])
+  @@index([notaId])
+  @@index([variacaoId])
   @@map("movimentacoes")
 }
 
@@ -197,4 +223,47 @@ model Notificacao {
 
   @@index([usuarioId])
   @@map("notificacoes")
+}
+
+// Variação de um produto (ex.: Vestido Midi — tamanho M, cor Azul).
+// Cada variação tem seu próprio estoque. Produto sem tamanho/cor usa
+// tamanho "Único" e cor "Única".
+model VariacaoProduto {
+  id         String   @id @default(cuid())
+  tamanho    String   @default("Único")
+  cor        String   @default("Única")
+  sku        String   // gerado: SKU do produto + tamanho + cor (ou o próprio SKU se for Único/Única)
+  quantidade Int      @default(0)
+  criadoEm   DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  itensNota     ItemNotaFiscal[]
+  movimentacoes Movimentacao[]
+
+  @@unique([produtoId, tamanho, cor])
+  @@unique([usuarioId, sku])
+  @@index([usuarioId])
+  @@index([produtoId])
+  @@map("variacoes_produto")
+}
+
+// Controle do aviso de inconsistência fiscal (saídas por venda > NF-e do mês).
+// Uma linha por usuário: guarda em qual mês o aviso já foi dado, para não
+// repetir — e é zerado quando as notas alcançam as saídas.
+model AvisoFiscal {
+  id          String   @id @default(cuid())
+  competencia String   // "AAAA-MM" do mês controlado
+  avisado     Boolean  @default(false)
+  atualizadoEm DateTime @updatedAt
+
+  usuarioId String  @unique
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("avisos_fiscais")
 }
