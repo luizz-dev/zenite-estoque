@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Filter, ChevronDown, ChevronLeft, ChevronRight, Printer } from "lucide-react";
 import { C, STATUS_FISCAL_INFO } from "@/lib/constants";
 import { FORMAS_PAGAMENTO } from "@/lib/constants";
 import { brl } from "@/lib/utils";
@@ -16,7 +16,7 @@ const ITENS_POR_PAGINA = 10;
 
 type Evento =
   | { tipo: "entrada" | "saida"; id: string; item: string; qtd: number; motivo?: string | null; observacao?: string | null; data: string }
-  | { tipo: "nfe"; id: string; numero: number; itens: { nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }[]; valorTotal: number; destinatarioNome: string; destinatarioDoc: string; destinatarioUf: string; formaPagamento: string; statusFiscal: StatusFiscal; motivoRejeicao?: string | null; data: string };
+  | { tipo: "nfe"; id: string; numero: number; itens: { nome: string; sku: string; ncm: string; cfop: string; quantidade: number; valorUnitario: number }[]; valorTotal: number; destinatarioNome: string; destinatarioDoc: string; destinatarioUf: string; formaPagamento: string; statusFiscal: StatusFiscal; motivoRejeicao?: string | null; temDanfe?: boolean; data: string };
 
 export default function HistoricoPage() {
   const { movimentacoes, notas, carregando } = useApp();
@@ -36,7 +36,7 @@ export default function HistoricoPage() {
     const nfes: Evento[] = notas.map((n) => ({
       tipo: "nfe", id: n.id, numero: n.numero, itens: n.itens, valorTotal: n.valorTotal,
       destinatarioNome: n.destinatarioNome, destinatarioDoc: n.destinatarioDoc, destinatarioUf: n.destinatarioUf,
-      formaPagamento: n.formaPagamento, statusFiscal: n.statusFiscal, motivoRejeicao: n.motivoRejeicao, data: n.emitidaEm,
+      formaPagamento: n.formaPagamento, statusFiscal: n.statusFiscal, motivoRejeicao: n.motivoRejeicao, temDanfe: n.temDanfe, data: n.emitidaEm,
     }));
     return [...movs, ...nfes].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, notas]);
@@ -115,6 +115,24 @@ export default function HistoricoPage() {
                         <div><span style={{ color: C.textMuted }}>UF destino: </span><span style={{ color: C.white }}>{ev.destinatarioUf}</span></div>
                         <div><span style={{ color: C.textMuted }}>Pagamento: </span><span style={{ color: C.white }}>{FORMAS_PAGAMENTO.find((f) => f.v === ev.formaPagamento)?.l || "—"}</span></div>
                       </div>
+
+                      {/* Botão imprimir: canto direito, acima do valor total.
+                          Nota com XML guardado abre o DANFE em PDF; as antigas abrem a página de impressão. */}
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => window.open(ev.temDanfe ? `/api/notas/${ev.id}/danfe` : `/imprimir/nota/${ev.id}`, "_blank")}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "7px 14px", borderRadius: 8, border: "none",
+                            background: C.orange, color: C.white,
+                            fontSize: 14, fontWeight: 600, cursor: "pointer",
+                          }}
+                        >
+                          <Printer size={15} /> Imprimir
+                        </button>
+                      </div>
+
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {ev.itens.map((it, i) => (
                           <div key={i} style={{ display: "grid", gridTemplateColumns: "1.6fr 60px 90px 90px", gap: 8, fontSize: 15, padding: "10px 10px", background: C.cardInner, borderRadius: 8 }}>

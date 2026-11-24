@@ -7,6 +7,7 @@
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 require_once __DIR__ . '/NFeConfig.php';
 require_once __DIR__ . '/NFeEmissor.php';
+require_once __DIR__ . '/NFeDanfe.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -38,7 +39,7 @@ try {
         responder(401, ['erro' => 'Token de serviço inválido.']);
     }
 
-    if ($metodo !== 'POST' || !in_array($caminho, ['/emitir', '/consultar'], true)) {
+    if ($metodo !== 'POST' || !in_array($caminho, ['/emitir', '/consultar', '/danfe'], true)) {
         responder(404, ['erro' => 'Rota não encontrada.']);
     }
 
@@ -49,6 +50,15 @@ try {
     $dados = json_decode($bruto, true);
     if (!is_array($dados)) {
         responder(400, ['erro' => 'JSON inválido.']);
+    }
+
+    if ($caminho === '/danfe') {
+        $pdf = gerarDanfePdf((string) ($dados['xml'] ?? ''));
+        http_response_code(200);
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . strlen($pdf));
+        echo $pdf;
+        exit;
     }
 
     if ($caminho === '/emitir') {

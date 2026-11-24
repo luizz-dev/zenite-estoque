@@ -15,6 +15,7 @@ class ComposerStaticInit3d754707c7460073f17cea3452d7e31b
         array (
             'NFePHP\\NFe\\' => 11,
             'NFePHP\\Gtin\\' => 12,
+            'NFePHP\\DA\\' => 10,
             'NFePHP\\Common\\' => 14,
         ),
         'M' =>
@@ -24,6 +25,11 @@ class ComposerStaticInit3d754707c7460073f17cea3452d7e31b
         'J' =>
         array (
             'JsonSchema\\' => 11,
+        ),
+        'C' =>
+        array (
+            'Com\\Tecnick\\Color\\' => 18,
+            'Com\\Tecnick\\Barcode\\' => 20,
         ),
     );
 
@@ -40,6 +46,10 @@ class ComposerStaticInit3d754707c7460073f17cea3452d7e31b
         array (
             0 => __DIR__ . '/..' . '/nfephp-org/sped-gtin/src',
         ),
+        'NFePHP\\DA\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/nfephp-org/sped-da/src',
+        ),
         'NFePHP\\Common\\' =>
         array (
             0 => __DIR__ . '/..' . '/nfephp-org/sped-common/src',
@@ -51,6 +61,14 @@ class ComposerStaticInit3d754707c7460073f17cea3452d7e31b
         'JsonSchema\\' =>
         array (
             0 => __DIR__ . '/..' . '/justinrainbow/json-schema/src/JsonSchema',
+        ),
+        'Com\\Tecnick\\Color\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-color/src',
+        ),
+        'Com\\Tecnick\\Barcode\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-barcode/src',
         ),
     );
 

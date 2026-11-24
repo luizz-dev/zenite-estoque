@@ -61,7 +61,7 @@ export default function LoginPage() {
     <AuthBackground>
       <AuthSplitCard orangeSide="left">
         <h2 style={{ color: C.white, fontSize: 22, fontWeight: 700, margin: "0 0 22px" }}>Login</h2>
-        <AuthField label="E-mail" icon={<Mail size={14} />} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: exemplo@mail.com" />
+        <AuthField label="E-mail" icon={<Mail size={14} />} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: exemplo@gmail.com" />
         <AuthField label="Senha" icon={<KeyRound size={14} />} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Ex: exemplo123"
           onKeyDown={(e) => e.key === "Enter" && entrar()} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, fontSize: 12 }}>
